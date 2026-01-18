@@ -27,6 +27,12 @@ export const BuiltinAgentNameSchema = z.enum([
   "Metis (Plan Consultant)",
   "Momus (Plan Reviewer)",
   "orchestrator-sisyphus",
+  "finances-orchestrator",
+  "wallet-agent",
+  "budget-analyst",
+  "investment-agent",
+  "tax-specialist-br",
+  "regulatory-agent",
 ])
 
 export const BuiltinSkillNameSchema = z.enum([
@@ -51,6 +57,12 @@ export const OverridableAgentNameSchema = z.enum([
   "document-writer",
   "multimodal-looker",
   "orchestrator-sisyphus",
+  "finances-orchestrator",
+  "wallet-agent",
+  "budget-analyst",
+  "investment-agent",
+  "tax-specialist-br",
+  "regulatory-agent",
 ])
 
 export const AgentNameSchema = BuiltinAgentNameSchema
@@ -134,6 +146,12 @@ export const AgentOverridesSchema = z.object({
   "document-writer": AgentOverrideConfigSchema.optional(),
   "multimodal-looker": AgentOverrideConfigSchema.optional(),
   "orchestrator-sisyphus": AgentOverrideConfigSchema.optional(),
+  "finances-orchestrator": AgentOverrideConfigSchema.optional(),
+  "wallet-agent": AgentOverrideConfigSchema.optional(),
+  "budget-analyst": AgentOverrideConfigSchema.optional(),
+  "investment-agent": AgentOverrideConfigSchema.optional(),
+  "tax-specialist-br": AgentOverrideConfigSchema.optional(),
+  "regulatory-agent": AgentOverrideConfigSchema.optional(),
 })
 
 export const ClaudeCodeConfigSchema = z.object({

@@ -305,6 +305,10 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       const agent = agentResult["orchestrator-sisyphus"] as AgentWithPermission;
       agent.permission = { ...agent.permission, task: "deny", call_omo_agent: "deny", delegate_task: "allow" };
     }
+    if (agentResult["finances-orchestrator"]) {
+      const agent = agentResult["finances-orchestrator"] as AgentWithPermission;
+      agent.permission = { ...agent.permission, task: "deny", call_omo_agent: "deny", delegate_task: "allow" };
+    }
     if (agentResult.Sisyphus) {
       const agent = agentResult.Sisyphus as AgentWithPermission;
       agent.permission = { ...agent.permission, call_omo_agent: "deny", delegate_task: "allow" };

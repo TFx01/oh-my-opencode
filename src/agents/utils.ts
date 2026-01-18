@@ -11,6 +11,14 @@ import { createMultimodalLookerAgent, MULTIMODAL_LOOKER_PROMPT_METADATA } from "
 import { createMetisAgent } from "./metis"
 import { createOrchestratorSisyphusAgent, orchestratorSisyphusAgent } from "./orchestrator-sisyphus"
 import { createMomusAgent } from "./momus"
+
+// Finances agents
+import { createFinancesOrchestratorAgent } from "./finances/orchestrator"
+import { createWalletAgent } from "./finances/wallet-agent"
+import { createBudgetAnalystAgent } from "./finances/budget-analyst"
+import { createInvestmentAgent } from "./finances/investment-agent"
+import { createTaxSpecialistBRAgent } from "./finances/tax-specialist-br"
+import { createRegulatoryAgent } from "./finances/regulatory-agent"
 import type { AvailableAgent } from "./sisyphus-prompt-builder"
 import { deepMerge } from "../shared"
 import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants"
@@ -29,6 +37,13 @@ const agentSources: Record<BuiltinAgentName, AgentSource> = {
   "Metis (Plan Consultant)": createMetisAgent,
   "Momus (Plan Reviewer)": createMomusAgent,
   "orchestrator-sisyphus": orchestratorSisyphusAgent,
+  // Finances agents
+  "finances-orchestrator": createFinancesOrchestratorAgent,
+  "wallet-agent": createWalletAgent,
+  "budget-analyst": createBudgetAnalystAgent,
+  "investment-agent": createInvestmentAgent,
+  "tax-specialist-br": createTaxSpecialistBRAgent,
+  "regulatory-agent": createRegulatoryAgent,
 }
 
 /**
@@ -42,6 +57,58 @@ const agentMetadata: Partial<Record<BuiltinAgentName, AgentPromptMetadata>> = {
   "frontend-ui-ux-engineer": FRONTEND_PROMPT_METADATA,
   "document-writer": DOCUMENT_WRITER_PROMPT_METADATA,
   "multimodal-looker": MULTIMODAL_LOOKER_PROMPT_METADATA,
+  // Finances agents
+  "finances-orchestrator": {
+    category: "advisor",
+    cost: "EXPENSIVE",
+    triggers: [
+      { domain: "General Finance", trigger: "Any financial question" },
+      { domain: "Multi-agent Task", trigger: "Complex analysis requiring multiple specialists" },
+    ],
+    keyTrigger: "finances, financial, money, budget, investment, tax",
+  },
+  "wallet-agent": {
+    category: "specialist",
+    cost: "CHEAP",
+    triggers: [
+      { domain: "Transactions", trigger: "balance, transaction, expense, income" },
+      { domain: "Account", trigger: "account, wallet, spending" },
+    ],
+    keyTrigger: "balance, transactions, expenses, spending",
+  },
+  "budget-analyst": {
+    category: "specialist",
+    cost: "CHEAP",
+    triggers: [
+      { domain: "Budget", trigger: "budget, forecast, variance, KPI" },
+    ],
+    keyTrigger: "budget, forecast, variance",
+  },
+  "investment-agent": {
+    category: "specialist",
+    cost: "EXPENSIVE",
+    triggers: [
+      { domain: "Portfolio", trigger: "portfolio, investments, holdings" },
+      { domain: "Opportunities", trigger: "opportunity, research, stock, FII" },
+    ],
+    keyTrigger: "invest, portfolio, stock, opportunity",
+  },
+  "tax-specialist-br": {
+    category: "specialist",
+    cost: "EXPENSIVE",
+    triggers: [
+      { domain: "Taxes", trigger: "tax, imposto, IRPF, deduction" },
+    ],
+    keyTrigger: "tax, imposto, IRPF, deduction, declare",
+  },
+  "regulatory-agent": {
+    category: "specialist",
+    cost: "EXPENSIVE",
+    triggers: [
+      { domain: "Regulations", trigger: "regulation, CVM, compliance, BCB" },
+    ],
+    keyTrigger: "regulation, CVM, compliance, rule",
+  },
 }
 
 function isFactory(source: AgentSource): source is AgentFactory {
@@ -146,6 +213,7 @@ export function createBuiltinAgents(
 
     if (agentName === "Sisyphus") continue
     if (agentName === "orchestrator-sisyphus") continue
+    if (agentName === "finances-orchestrator") continue
     if (disabledAgents.includes(agentName)) continue
 
     const override = agentOverrides[agentName]
@@ -205,6 +273,36 @@ export function createBuiltinAgents(
     }
 
     result["orchestrator-sisyphus"] = orchestratorConfig
+  }
+
+  // Pass 3: Create finances-orchestrator with ONLY finances subagents
+  // This follows the same 2-pass pattern as Sisyphus - skip in Pass 1, create in Pass 2
+  if (!disabledAgents.includes("finances-orchestrator")) {
+    const financesOverride = agentOverrides["finances-orchestrator"]
+    const financesModel = financesOverride?.model ?? systemDefaultModel
+
+    // Filter availableAgents to include ONLY finances subagents
+    const financesSubagentNames = [
+      "wallet-agent",
+      "budget-analyst",
+      "investment-agent",
+      "tax-specialist-br",
+      "regulatory-agent",
+    ]
+    const financesAvailableAgents = availableAgents.filter((a) =>
+      financesSubagentNames.includes(a.name)
+    )
+
+    let financesConfig = createFinancesOrchestratorAgent(
+      financesModel,
+      financesAvailableAgents
+    )
+
+    if (financesOverride) {
+      financesConfig = mergeAgentConfig(financesConfig, financesOverride)
+    }
+
+    result["finances-orchestrator"] = financesConfig
   }
 
   return result

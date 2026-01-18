@@ -10,6 +10,14 @@ import { metisAgent } from "./metis"
 import { orchestratorSisyphusAgent } from "./orchestrator-sisyphus"
 import { momusAgent } from "./momus"
 
+// Finances agents
+import { financesOrchestratorAgent } from "./finances/orchestrator"
+import { walletAgent } from "./finances/wallet-agent"
+import { budgetAnalystAgent } from "./finances/budget-analyst"
+import { investmentAgent } from "./finances/investment-agent"
+import { taxSpecialistBRAgent } from "./finances/tax-specialist-br"
+import { regulatoryAgent } from "./finances/regulatory-agent"
+
 export const builtinAgents: Record<string, AgentConfig> = {
   Sisyphus: sisyphusAgent,
   oracle: oracleAgent,
@@ -21,6 +29,13 @@ export const builtinAgents: Record<string, AgentConfig> = {
   "Metis (Plan Consultant)": metisAgent,
   "Momus (Plan Reviewer)": momusAgent,
   "orchestrator-sisyphus": orchestratorSisyphusAgent,
+  // Finances agents
+  "finances-orchestrator": financesOrchestratorAgent,
+  "wallet-agent": walletAgent,
+  "budget-analyst": budgetAnalystAgent,
+  "investment-agent": investmentAgent,
+  "tax-specialist-br": taxSpecialistBRAgent,
+  "regulatory-agent": regulatoryAgent,
 }
 
 export * from "./types"

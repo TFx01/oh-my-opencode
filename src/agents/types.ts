@@ -67,6 +67,16 @@ export type BuiltinAgentName =
   | "Metis (Plan Consultant)"
   | "Momus (Plan Reviewer)"
   | "orchestrator-sisyphus"
+  | "finances-orchestrator"
+  | "wallet-agent"
+  | "budget-analyst"
+  | "investment-agent"
+  | "tax-specialist-br"
+  | "regulatory-agent"
+
+export function isGeminiModel(model: string): boolean {
+  return model.includes("gemini")
+}
 
 export type OverridableAgentName =
   | "build"
