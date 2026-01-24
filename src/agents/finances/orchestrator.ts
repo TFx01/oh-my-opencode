@@ -125,10 +125,9 @@ const FINANCES_TOOL_SELECTION = `## Tool Selection
 
 | Tool | Purpose | Usage |
 |------|---------|-------|
-| **sisyphus_task** | Delegate to subagent | Category-based delegation |
-| **background_task** | Parallel exploration | Concurrent agent calls |
-| **background_output** | Retrieve results | Get background task results |
-| **background_cancel** | Cleanup | Cancel running tasks |
+| **delegate_task** | Delegate to subagent | Category-based or agent delegation with run_in_background parameter |
+| **background_output** | Retrieve results | Get background task results with task_id |
+| **background_cancel** | Cleanup | Cancel running tasks with all=true |
 
 ### Built-in Tools
 
@@ -143,12 +142,38 @@ const FINANCES_TOOL_SELECTION = `## Tool Selection
 
 \`\`\`typescript
 // CORRECT: Always background, always parallel
-sisyphus_task(agent="investment-agent", prompt="Research...")
-sisyphus_task(agent="wallet-agent", prompt="Get current holdings...")
-sisyphus_task(agent="regulatory-agent", prompt="Check compliance...")
+// Financial subagents
+delegate_task(subagent_type="investment-agent", prompt="Research investment opportunities...", run_in_background=true, skills=[])
+delegate_task(subagent_type="tax-specialist-br", prompt="Check tax implications...", run_in_background=true, skills=[])
+delegate_task(subagent_type="budget-analyst", prompt="Analyze budget variance...", run_in_background=true, skills=[])
+// Research agents
+delegate_task(agent="explore", prompt="Find transaction patterns in database...", run_in_background=true, skills=[])
+delegate_task(agent="librarian", prompt="Find latest financial regulations...", run_in_background=true, skills=[])
+// Continue working immediately. Collect with background_output when needed.
 
-// WRONG: Sequential
-result = task(...)  // Never wait synchronously for research agents
+// WRONG: Sequential or blocking
+result = task(...)  // Never wait synchronously for research/subagent calls
+\`\`\`
+
+### Background Result Collection
+
+1. Launch parallel agents → receive task_ids
+2. Continue immediate work
+3. When results needed: background_output(task_id="...")
+4. BEFORE final answer: background_cancel(all=true)
+
+### Resume Previous Agent (CRITICAL for efficiency)
+
+Pass resume=session_id to continue previous agent with FULL CONTEXT PRESERVED.
+
+**ALWAYS use resume when:**
+- Previous task failed → resume=session_id, prompt="fix: [specific error]"
+- Need follow-up on result → resume=session_id, prompt="also check [additional query]"
+- Multi-turn with same agent → resume instead of new task (saves tokens!)
+
+**Example:**
+\`\`\`
+delegate_task(resume="ses_abc123", prompt="The previous analysis missed X. Also look for Y.")
 \`\`\`
 
 ### Search Stop Conditions

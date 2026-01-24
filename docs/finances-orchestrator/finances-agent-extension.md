@@ -146,14 +146,9 @@ src/
 ├── tools/
 │   ├── index.ts                           # Tool exports
 │   │
-│   ├── finances-task/
-│   │   ├── constants.ts                   # Category configurations
-│   │   ├── tools.ts                       # Task delegation tool
-│   │   └── index.ts                       # Export
-│   │
-│   └── supabase-mcp/
-│       ├── tools.ts                       # Supabase MCP tools
-│       ├── schema.ts                      # MCP tool definitions
+│   └── delegate-task/                     # Standard delegation tool (used by finances)
+│       ├── constants.ts                   # Category configurations
+│       ├── tools.ts                       # Task delegation tool
 │       └── index.ts                       # Export
 │
 ├── features/
@@ -335,10 +330,9 @@ const FINANCES_TOOL_SELECTION = `### Tool Selection
 
 | Tool | Purpose | Usage |
 |------|---------|-------|
-| **sisyphus_task** | Delegate to subagent | Category-based delegation |
-| **background_task** | Parallel exploration | Concurrent agent calls |
-| **background_output** | Retrieve results | Get background task results |
-| **background_cancel** | Cleanup | Cancel running tasks |
+| **delegate_task** | Delegate to subagent | Category-based or agent delegation with run_in_background parameter |
+| **background_output** | Retrieve results | Get background task results with task_id |
+| **background_cancel** | Cleanup | Cancel running tasks with all=true |
 
 #### Built-in Tools
 
@@ -353,13 +347,38 @@ const FINANCES_TOOL_SELECTION = `### Tool Selection
 
 \`\`\`typescript
 // CORRECT: Always background, always parallel
-sisyphus_task(agent="investment-agent", prompt="Research...")
-sisyphus_task(agent="wallet-agent", prompt="Get current holdings...")
-sisyphus_task(agent="regulatory-agent", prompt="Check compliance...")
-// Continue working immediately
+// Financial subagents
+delegate_task(subagent_type="investment-agent", prompt="Research investment opportunities...", run_in_background=true, skills=[])
+delegate_task(subagent_type="tax-specialist-br", prompt="Check tax implications...", run_in_background=true, skills=[])
+delegate_task(subagent_type="budget-analyst", prompt="Analyze budget variance...", run_in_background=true, skills=[])
+// Research agents
+delegate_task(agent="explore", prompt="Find transaction patterns in database...", run_in_background=true, skills=[])
+delegate_task(agent="librarian", prompt="Find latest financial regulations...", run_in_background=true, skills=[])
+// Continue working immediately. Collect with background_output when needed.
 
-// WRONG: Sequential
-result = task(...)  // Never wait synchronously for research agents
+// WRONG: Sequential or blocking
+result = task(...)  // Never wait synchronously for research/subagent calls
+\`\`\`
+
+### Background Result Collection
+
+1. Launch parallel agents → receive task_ids
+2. Continue immediate work
+3. When results needed: background_output(task_id="...")
+4. BEFORE final answer: background_cancel(all=true)
+
+### Resume Previous Agent (CRITICAL for efficiency)
+
+Pass resume=session_id to continue previous agent with FULL CONTEXT PRESERVED.
+
+**ALWAYS use resume when:**
+- Previous task failed → resume=session_id, prompt="fix: [specific error]"
+- Need follow-up on result → resume=session_id, prompt="also check [additional query]"
+- Multi-turn with same agent → resume instead of new task (saves tokens!)
+
+**Example:**
+\`\`\`
+delegate_task(resume="ses_abc123", prompt="The previous analysis missed X. Also look for Y.")
 \`\`\`
 
 ### Search Stop Conditions
@@ -383,9 +402,9 @@ const FINANCES_DATA_HANDLING = `### Data Handling Principles
 
 \`\`\`sql
 -- Example: Safe query pattern
-SELECT * FROM transactions 
-WHERE user_id = :user_id 
-  AND date >= :start_date 
+SELECT * FROM transactions
+WHERE user_id = :user_id
+  AND date >= :start_date
   AND date <= :end_date
 ORDER BY date DESC
 LIMIT 100
@@ -536,7 +555,7 @@ export function createFinancesOrchestratorAgent(
     prompt,
     color: "#228B22",  // Forest green for finances
     tools: {
-      call_omo_agent: false,  // Use sisyphus_task instead
+      call_omo_agent: false,  // Use delegate_task instead
     },
   }
 
@@ -642,8 +661,6 @@ export function createWalletAgent(model: string = DEFAULT_MODEL): AgentConfig {
     color: "#4169E1",
     tools: {
       execute_sql: true,
-      execute_sql: true,
-      execute_sql: true,
     },
   }
 }
@@ -711,14 +728,14 @@ You are "Budget Analyst" - Expert in financial planning and budget management.
 // Get budget vs actual
 execute_sql({
   query: \`
-    SELECT 
+    SELECT
       b.category,
       b.budgeted_amount,
       COALESCE(SUM(t.amount), 0) as actual_amount,
       b.budgeted_amount - COALESCE(SUM(t.amount), 0) as variance
     FROM budgets b
-    LEFT JOIN transactions t ON b.user_id = t.user_id 
-      AND b.category = t.category 
+    LEFT JOIN transactions t ON b.user_id = t.user_id
+      AND b.category = t.category
       AND t.date BETWEEN b.start_date AND b.end_date
     WHERE b.user_id = ? AND b.active = true
     GROUP BY b.category, b.budgeted_amount
@@ -915,11 +932,11 @@ You are "Tax Specialist BR" - Expert in Brazilian tax law and IRPF (Imposto de R
 // Capital gains summary
 execute_sql({
   query: \`
-    SELECT 
+    SELECT
       DATE_TRUNC('month', date) as month,
       SUM(CASE WHEN type = 'gain' THEN amount ELSE 0 END) as gains,
       SUM(CASE WHEN type = 'loss' THEN ABS(amount) ELSE 0 END) as losses
-    FROM transactions 
+    FROM transactions
     WHERE user_id = ? AND category = 'stocks'
     GROUP BY month
     ORDER BY month
@@ -1430,7 +1447,7 @@ INSERT INTO users (telegram_chat_id, name, preferences) VALUES
 (123456789, 'User', '{"language": "pt-BR", "currency": "BRL"}');
 
 -- Sample budget
-INSERT INTO budgets (user_id, name, category, budgeted_amount, period_type, start_date, active) 
+INSERT INTO budgets (user_id, name, category, budgeted_amount, period_type, start_date, active)
 SELECT id, 'Monthly Food Budget', 'Food', 2000, 'monthly', DATE_TRUNC('month', NOW()), true
 FROM users WHERE telegram_chat_id = 123456789 LIMIT 1;
 ```
@@ -1532,24 +1549,24 @@ async def create_tailscale_tunnel(
 ):
     """
     Create SSH tunnel to OpenCode server via Tailscale network.
-    
+
     Prerequisites:
     1. Install Tailscale on both devices
     2. Authenticate both devices to your Tailscale network
     3. Get your MacBook's Tailscale IP: `tailscale ip`
     4. Enable SSH on your MacBook: System Settings → Sharing → Remote Login
-    
+
     Usage:
         python ssh_tunnel.py
-    
+
     The tunnel connects:
     - Local (Telegram repo): localhost:5147
     - Remote (OpenCode): 100.x.x.x:5147 (your Tailscale IP)
     """
-    
+
     print(f"🔗 Connecting to OpenCode via Tailscale...")
     print(f"   Target: {remote_host}:{remote_port}")
-    
+
     try:
         async with asyncssh.connect(
             host=remote_host,
@@ -1563,15 +1580,15 @@ async def create_tailscale_tunnel(
                 remote_host, remote_port,
                 local_host, local_port
             )
-            
+
             print(f"✅ SSH tunnel established!")
             print(f"   Local:  localhost:{local_port}")
             print(f"   Remote: {remote_host}:{remote_port}")
             print(f"   Tailscale IP: {remote_host}")
-            
+
             # Keep tunnel running
             await asyncio.Future()
-            
+
     except Exception as e:
         print(f"❌ Failed to establish tunnel: {e}")
         print(f"   Make sure:")
@@ -1607,73 +1624,73 @@ async def start_tunnel():
 
 async def handle_message(update: Update, context):
     """Handle incoming messages from Telegram"""
-    
+
     user = update.effective_user
     chat_id = update.effective_chat.id
     message = update.message.text
-    
+
     # Log incoming message
     print(f"📨 From {user.name} ({chat_id}): {message}")
-    
+
     # Check if session exists or create new
     session = session_manager.get_or_create(chat_id)
-    
+
     if session.is_active:
         # Continue existing session
         response = await session.continue_session(message)
     else:
         # Start new session
         response = await session.start_new(message)
-    
+
     # Send response
     await update.message.reply_text(
-        response, 
+        response,
         parse_mode='Markdown'
     )
 
 async def handle_voice(update: Update, context):
     """Handle voice messages - forward to Gemini 1.5 Pro"""
-    
+
     voice = update.message.voice
     file = await voice.get_file()
-    
+
     # Download audio
     audio_path = f"/tmp/{voice.file_id}.ogg"
     await file.download_to_drive(audio_path)
-    
+
     # Send to OpenCode for transcription + analysis
     session = session_manager.get_or_create(update.effective_chat.id)
     response = await session.send_audio(audio_path)
-    
+
     await update.message.reply_text(response, parse_mode='Markdown')
 
 async def handle_photo(update: Update, context):
     """Handle photos - receipt analysis, etc."""
-    
+
     photo = update.message.photo[-1]  # Highest resolution
     file = await photo.get_file()
-    
+
     image_path = f"/tmp/{photo.file_id}.jpg"
     await file.download_to_drive(image_path)
-    
+
     session = session_manager.get_or_create(update.effective_chat.id)
     response = await session.send_image(image_path)
-    
+
     await update.message.reply_text(response, parse_mode='Markdown')
 
 async def main():
     # Ensure tunnel is active
     await start_tunnel()
-    
+
     # Create application
     app = Application.builder().token("YOUR_BOT_TOKEN").build()
-    
+
     # Add handlers
     app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Olá! Sou seu assistente de finanças. Como posso ajudar?")))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    
+
     # Start polling
     print("🤖 Telegram bot started")
     await app.run_polling()
@@ -1706,17 +1723,17 @@ class SessionManager:
         self.opencode_url = opencode_url
         self.sessions: dict[int, Session] = {}
         self.http_client = httpx.AsyncClient(timeout=300.0)
-    
+
     def get_or_create(self, chat_id: int) -> Session:
         """Get existing session or create new one"""
         if chat_id not in self.sessions:
             self.sessions[chat_id] = Session(chat_id=chat_id)
         return self.sessions[chat_id]
-    
+
     async def start_new(self, message: str) -> str:
         """Start new OpenCode session"""
         session = self.get_or_create(self.chat_id)
-        
+
         # Call OpenCode API to start session
         response = await self.http_client.post(
             f"{self.opencode_url}/session/start",
@@ -1726,33 +1743,33 @@ class SessionManager:
                 "model": "google/gemini-3-pro-preview"
             }
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             session.opencode_session_id = data["session_id"]
             session.is_active = True
             session.started_at = datetime.now()
-            
+
             # Return summary (webhook will send full response)
             return f"🔄 Processando sua solicitação...\n\n📊 Session ID: `{data['session_id']}`\n\n⏳ Aguarde a análise ser concluída."
         else:
             return "❌ Erro ao iniciar sessão. Tente novamente."
-    
+
     async def continue_session(self, message: str) -> str:
         """Continue existing session"""
         session = self.get_or_create(self.chat_id)
-        
+
         response = await self.http_client.post(
             f"{self.opencode_url}/session/{session.opencode_session_id}/continue",
             json={"message": message}
         )
-        
+
         return response.json()["response"]
-    
+
     async def send_audio(self, audio_path: str) -> str:
         """Send audio for transcription + analysis"""
         session = self.get_or_create(self.chat_id)
-        
+
         with open(audio_path, "rb") as f:
             files = {"audio": f}
             data = {"chat_id": self.chat_id}
@@ -1761,13 +1778,13 @@ class SessionManager:
                 files=files,
                 data=data
             )
-        
+
         return response.json()["response"]
-    
+
     async def send_image(self, image_path: str) -> str:
         """Send image for analysis"""
         session = self.get_or_create(self.chat_id)
-        
+
         with open(image_path, "rb") as f:
             files = {"image": f}
             data = {"chat_id": self.chat_id}
@@ -1776,15 +1793,15 @@ class SessionManager:
                 files=files,
                 data=data
             )
-        
+
         return response.json()["response"]
-    
+
     async def get_status(self, chat_id: int) -> dict:
         """Get session status"""
         session = self.sessions.get(chat_id)
         if not session:
             return {"status": "no_active_session"}
-        
+
         return {
             "status": "active" if session.is_active else "completed",
             "session_id": session.opencode_session_id,
@@ -1877,32 +1894,32 @@ async function handleContinue(sessionId: string, message: string) {
     query: "SELECT * FROM sessions WHERE opencode_session_id = ?",
     params: [sessionId]
   });
-  
+
   // 2. Get fresh data pointers
   const pointers = session.data_pointers;
-  
+
   // 3. Create continuation prompt
   const prompt = `
     ## Previous Session Context
     ${session.summary}
-    
+
     ## Data Pointers (re-query these for fresh data)
     - Transactions: ${pointers.transactions_last_query}
     - Portfolios: ${pointers.portfolios_last_query}
-    
+
     ## User Request
     ${message}
-    
+
     ## Task
     Continue the analysis using fresh data from Supabase.
   `;
-  
+
   // 4. Start new OpenCode session with context
   const newSession = await opencode.startSession({
     systemPrompt: session.system_context,  // Lightweight context
     userPrompt: prompt
   });
-  
+
   // 5. Return response
   return newSession.response;
 }
@@ -2003,14 +2020,14 @@ import { SupabaseClient } from "./tools"
 
 describe("Supabase MCP", () => {
   let client: SupabaseClient
-  
+
   beforeAll(() => {
     client = new SupabaseClient({
       connectionString: process.env.SUPABASE_URL,
       apiKey: process.env.SUPABASE_API_KEY
     })
   })
-  
+
   it("connects and queries transactions", async () => {
     const result = await client.query({
       query: "SELECT COUNT(*) as count FROM transactions LIMIT 1",
@@ -2019,7 +2036,7 @@ describe("Supabase MCP", () => {
     expect(result).toHaveProperty("data")
     expect(result.data).toHaveProperty("count")
   })
-  
+
   it("inserts and deletes a test record", async () => {
     // Insert
     const insert = await client.insert({
@@ -2033,7 +2050,7 @@ describe("Supabase MCP", () => {
       }
     })
     expect(insert.data).toHaveProperty("id")
-    
+
     // Clean up
     await client.delete({
       table: "transactions",
@@ -2107,7 +2124,7 @@ This documentation provides a complete guide for implementing a **Finances Agent
 - **Sisyphus Implementation**: `src/agents/sisyphus.ts`
 - **Agent Types**: `src/agents/types.ts`
 - **Agent Factory**: `src/agents/utils.ts`
-- **Tool Integration**: `src/tools/sisyphus-task/tools.ts`
+- **Tool Integration**: `src/tools/delegate-task/tools.ts`
 - **Hook System**: `src/hooks/sisyphus-orchestrator/index.ts`
 - **Main Plugin**: `src/index.ts`
 - **Config Schema**: `src/config/schema.ts`

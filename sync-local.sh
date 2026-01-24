@@ -1,12 +1,18 @@
 #!/bin/bash
-# Sync local oh-my-opencode build to OpenCode cache
+# Sync local oh-my-opencode build to OpenCode
 # Run this after any code changes
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_FILE="$SCRIPT_DIR/dist/index.js"
+DEST_DIR="$HOME/.config/opencode/plugins"
+DEST_FILE="$DEST_DIR/oh-my-opencode.js"
 
 echo "Building oh-my-opencode..."
 bun run clean && bun run build
 
-echo "Syncing to OpenCode cache..."
-rm -rf ~/.cache/opencode/node_modules/oh-my-opencode/dist
-cp -r dist ~/.cache/opencode/node_modules/oh-my-opencode/
+echo "Copying to OpenCode plugins..."
+cp "$PLUGIN_FILE" "$DEST_FILE"
 
 echo "✓ Synced! Restart OpenCode to test changes."

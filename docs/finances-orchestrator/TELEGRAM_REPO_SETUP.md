@@ -2,6 +2,8 @@
 
 > **Note**: This is a reference document for the architecture. The actual Telegram repository should be created as a **separate repository**.
 
+> **Last Updated**: January 18, 2026
+
 ---
 
 ## Overview
@@ -47,7 +49,7 @@ This document describes the architecture and integration patterns for the Telegr
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Fluxo de Requisição
+### Request Flow
 
 ```
 1. User → Telegram Bot: "Analise meu portfólio"
@@ -57,7 +59,7 @@ This document describes the architecture and integration patterns for the Telegr
 5. OpenCode SDK → Exa MCP: Web research (opcional)
 6. OpenCode SDK → Wrapper: Agent response
 7. Wrapper → Telegram: JSON response
-8. Telegram → User: "📊 Análise do seu portfólio..."
+8. Telegram → User: "📊 Portfolio analysis..."
 ```
 
 ### Why Tailscale?
@@ -123,7 +125,7 @@ telegram-repo/
 
 ### MacBook Setup (Wrapper Server)
 
-O wrapper server deve rodar **no seu MacBook**:
+The wrapper server runs on **your MacBook**:
 
 ```bash
 # 1. Instalar dependências
@@ -264,67 +266,70 @@ async def handle_message(update: Update, context):
     """Handle incoming text messages"""
     user = update.effective_user
     message = update.message.text
-    
+    chat_id = user.id
+
     # Get or create session
-    session = session_manager.get_or_create(user.id)
-    
+    session = session_manager.get_or_create(chat_id)
+
     if session.is_active:
-        response = await session.continue_session(message)
+        response = await session.continue_session(chat_id, message)
     else:
-        response = await session.start_new(message)
-    
+        response = await session.start_new(chat_id, message)
+
     await update.message.reply_text(response, parse_mode='Markdown')
 
 async def handle_voice(update: Update, context):
     """Handle voice messages"""
     voice = update.message.voice
     file = await voice.get_file()
-    
+    chat_id = update.effective_user.id
+
     audio_path = f"/tmp/{voice.file_id}.ogg"
     await file.download_to_drive(audio_path)
-    
-    session = session_manager.get_or_create(update.effective_user.id)
-    response = await session.send_audio(audio_path)
-    
+
+    session = session_manager.get_or_create(chat_id)
+    response = await session.send_audio(chat_id, audio_path)
+
     await update.message.reply_text(response, parse_mode='Markdown')
 
 async def handle_photo(update: Update, context):
     """Handle photos (receipts, etc.)"""
     photo = update.message.photo[-1]
     file = await photo.get_file()
-    
+    chat_id = update.effective_user.id
+
     image_path = f"/tmp/{photo.file_id}.jpg"
     await file.download_to_drive(image_path)
-    
-    session = session_manager.get_or_create(update.effective_user.id)
-    response = await session.send_image(image_path)
-    
+
+    session = session_manager.get_or_create(chat_id)
+    response = await session.send_image(chat_id, image_path)
+
     await update.message.reply_text(response, parse_mode='Markdown')
 
 async def start_command(update: Update, context):
     """Handle /start command"""
     await update.message.reply_text(
-        "🤖 *Olá! Sou seu assistente de finanças.*\n\n"
-        "Posso ajudar você com:\n"
-        "• 💰 Análise de transações e saldo\n"
-        "• 📊 Orçamentos e projeções\n"
-        "• 📈 Investimentos e portfólio\n"
-        "• 🏛️ Impostos e compliance\n\n"
-        "Como posso ajudar hoje?",
+        "🤖 *Hello! I am your finances assistant.*\n\n"
+        "I can help you with:\n"
+        "• 💰 Transaction and balance analysis\n"
+        "• 📊 Budgets and projections\n"
+        "• 📈 Investments and portfolio\n"
+        "• 🏛️ Taxes and compliance\n\n"
+        "How can I help you today?",
         parse_mode='Markdown'
     )
 
 async def help_command(update: Update, context):
     """Handle /help command"""
     await update.message.reply_text(
-        "📚 *Comandos disponíveis:*\n\n"
-        "/start - Iniciar conversa\n"
-        "/help - Mostrar esta ajuda\n"
-        "/status - Verificar status da sessão\n\n"
-        "💡 *Dicas:*\n"
-        "• Envie mensagens de voz para registrar despesas\n"
-        "• Envie fotos de recibos para análise\n"
-        "• Pergunte sobre seu orçamento ou investimentos",
+        "📚 *Available commands:*\n\n"
+        "/start - Start conversation\n"
+        "/help - Show this help\n"
+        "/status - Check session status\n\n"
+        "💡 *Tips:*\n"
+        "• Send voice messages to record expenses\n"
+        "• Send receipt photos for analysis\n"
+        "• Ask about your budget or investments",
         parse_mode='Markdown'
     )
 
@@ -332,19 +337,19 @@ async def status_command(update: Update, context):
     """Check session status"""
     session = session_manager.get_or_create(update.effective_user.id)
     status = await session.get_status()
-    
+
     await update.message.reply_text(
-        f"📊 *Status da Sessão*\n\n"
+        f"📊 *Session Status*\n\n"
         f"Status: `{status['status']}`\n"
-        f"Sessão: `{status.get('session_id', 'N/A')}`\n"
-        f"Iniciada: `{status.get('started_at', 'N/A')}`",
+        f"Session: `{status.get('session_id', 'N/A')}`\n"
+        f"Started: `{status.get('started_at', 'N/A')}`",
         parse_mode='Markdown'
     )
 
 async def main():
     """Main entry point"""
     app = Application.builder().token(config.bot.token).build()
-    
+
     # Add handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
@@ -352,7 +357,7 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    
+
     print("🤖 Telegram bot started")
     await app.run_polling()
 
@@ -386,79 +391,79 @@ class SessionManager:
         self.sessions: dict[int, Session] = {}
         self.http_client = httpx.AsyncClient(timeout=config.opencode.timeout)
         self.opencode_url = config.opencode.url
-    
+
     def get_or_create(self, chat_id: int) -> Session:
         if chat_id not in self.sessions:
             logger.info(f"Creating new session for chat {chat_id}")
             self.sessions[chat_id] = Session(chat_id=chat_id)
         return self.sessions[chat_id]
-    
-    async def start_new(self, message: str) -> str:
-        session = self.get_or_create(self.chat_id)
-        
+
+    async def start_new(self, chat_id: int, message: str) -> str:
+        session = self.get_or_create(chat_id)
+
         logger.info(f"Starting new session for chat {session.chat_id}")
-        
+
         try:
             response = await self.http_client.post(
                 f"{self.opencode_url}/session/start",
                 json={
                     "message": message,
                     "chat_id": session.chat_id,
-                    "model": "google/gemini-3-pro-preview"
+                    "model": "google/gemini-1-5-pro"
                 }
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 session.opencode_session_id = data["session_id"]
                 session.is_active = True
                 session.started_at = datetime.now()
                 session.last_activity = datetime.now()
-                
+
                 logger.success(f"Session started: {session.opencode_session_id}")
-                
+
                 return (
-                    f"🔄 *Processando sua solicitação...*\n\n"
+                    f"🔄 *Processing your request...*\n\n"
                     f"📊 Session ID: `{data['session_id']}`\n\n"
-                    f"⏳ Aguarde a análise ser concluída."
+                    f"⏳ Please wait while the analysis is completed."
                 )
             else:
                 logger.error(f"Failed to start session: {response.status_code}")
-                return "❌ Erro ao iniciar sessão. Tente novamente."
-                
+                return "❌ Error starting session. Please try again."
+
         except Exception as e:
             logger.error(f"Error starting session: {e}")
-            return "❌ Erro de conexão. Verifique se o servidor OpenCode está ativo."
-    
-    async def continue_session(self, message: str) -> str:
-        session = self.get_or_create(self.chat_id)
-        
+            return "❌ Connection error. Check if OpenCode server is running."
+
+    async def continue_session(self, chat_id: int, message: str) -> str:
+        session = self.get_or_create(chat_id)
+
         if not session.is_active or not session.opencode_session_id:
-            return await self.start_new(message)
-        
+            return await self.start_new(chat_id, message)
+
         logger.info(f"Continuing session {session.opencode_session_id}")
-        
+
         try:
             response = await self.http_client.post(
                 f"{self.opencode_url}/session/{session.opencode_session_id}/continue",
                 json={"message": message}
             )
-            
+
             session.last_activity = datetime.now()
             return response.json()["response"]
-            
+
         except Exception as e:
             logger.error(f"Error continuing session: {e}")
-            return "❌ Erro ao continuar sessão."
-    
-    async def send_audio(self, audio_path: str) -> str:
-        session = self.get_or_create(self.chat_id)
-        
+            return "❌ Error continuing session."
+
+    async def send_audio(self, chat_id: int, audio_path: str) -> str:
+        session = self.get_or_create(chat_id)
+
         if not session.is_active:
-            await self.start_new("Análise de áudio")
-        
+            await self.start_new(chat_id, "Audio analysis")
+
         logger.info(f"Sending audio to session {session.opencode_session_id}")
-        
+
         with open(audio_path, "rb") as f:
             files = {"audio": f}
             data = {"chat_id": session.chat_id}
@@ -467,17 +472,17 @@ class SessionManager:
                 files=files,
                 data=data
             )
-        
+
         return response.json()["response"]
-    
-    async def send_image(self, image_path: str) -> str:
-        session = self.get_or_create(self.chat_id)
-        
+
+    async def send_image(self, chat_id: int, image_path: str) -> str:
+        session = self.get_or_create(chat_id)
+
         if not session.is_active:
-            await self.start_new("Análise de imagem")
-        
+            await self.start_new(chat_id, "Image analysis")
+
         logger.info(f"Sending image to session {session.opencode_session_id}")
-        
+
         with open(image_path, "rb") as f:
             files = {"image": f}
             data = {"chat_id": session.chat_id}
@@ -486,14 +491,14 @@ class SessionManager:
                 files=files,
                 data=data
             )
-        
+
         return response.json()["response"]
-    
+
     async def get_status(self, chat_id: int) -> dict:
         session = self.sessions.get(chat_id)
         if not session:
             return {"status": "no_active_session"}
-        
+
         return {
             "status": "active" if session.is_active else "completed",
             "session_id": session.opencode_session_id,
@@ -534,7 +539,7 @@ async def create_tunnel(
 ):
     """
     Create SSH reverse tunnel to OpenCode server via Tailscale.
-    
+
     Prerequisites:
     1. Install Tailscale on both devices
     2. Authenticate both to your Tailscale network
@@ -548,7 +553,7 @@ async def create_tunnel(
     host = config.tailscale.opencode_ip
     logger.info(f"Creating SSH tunnel via Tailscale: {host}:{remote_port} -> localhost:{local_port}")
     logger.info(f"   Tailscale IP: {host}")
-    
+
     try:
         async with asyncssh.connect(
             host=config.tailscale.opencode_ip,
@@ -559,17 +564,17 @@ async def create_tunnel(
         ) as conn:
             # Create reverse tunnel
             await conn.create_reverse_tunnel(
-                remote_host, remote_port,
-                local_host, local_port
+                "localhost", remote_port,
+                "localhost", local_port
             )
-            
+
             logger.success(f"✅ SSH tunnel established via Tailscale!")
             logger.info(f"   Local:  localhost:{local_port}")
             logger.info(f"   Remote: {host}:{remote_port}")
-            
+
             # Keep running
             await asyncio.Future()
-            
+
     except Exception as e:
         logger.error(f"Failed to create SSH tunnel: {e}")
         raise
@@ -582,21 +587,21 @@ if __name__ == "__main__":
 
 ## HTTP Wrapper Server (Python)
 
-O OpenCode tem SDK apenas para **JS/TS**. Para Python, usamos **HTTP REST** diretamente.
+OpenCode has SDK only for **JS/TS**. For Python, we use **HTTP REST** directly.
 
-### Seleção Explícita de Agentes
+### Explicit Agent Selection
 
 O ponto **CRÍTICO** é que o agente é selecionado **EXPLICITAMENTE** no body do prompt:
 
 ```python
-# Quando enviamos um prompt, definimos o agente no body:
+# When we send a prompt, we define the agent in the body:
 body = {
     "parts": [{"type": "text", "text": message}],
     "agent": "finances-orchestrator"  # ← SELEÇÃO EXPLÍCITA!
 }
 ```
 
-Isso garante que o OpenCode use o agente correto, não o default.
+This ensures OpenCode uses the correct agent, not the default.
 
 ### Agentes Disponíveis (no oh-my-opencode)
 
@@ -643,10 +648,10 @@ Isso garante que o OpenCode use o agente correto, não o default.
 """
 Wrapper HTTP Server for OpenCode Finances Agents
 
-Roda no MacBook e expõe uma API REST para o Telegram Repo.
-Conecta-se ao OpenCode Server via HTTP na porta 4096.
+Runs on MacBook and exposes a REST API for the Telegram Repo.
+Connects to OpenCode Server via HTTP on port 4096.
 
-O OpenCode SDK é JS/TS, então usamos HTTP REST diretamente.
+OpenCode SDK is JS/TS, so we use HTTP REST directly.
 
 Usage:
     python wrapper_server.py
@@ -708,7 +713,7 @@ class SessionStartRequest(BaseModel):
     message: str
     chat_id: int
     agent: str = "finances-orchestrator"
-    model: str = "google/gemini-3-pro-preview"
+    model: str = "google/gemini-1-5-pro"
 
 class SessionContinueRequest(BaseModel):
     message: str
@@ -724,11 +729,11 @@ class AgentInfo(BaseModel):
 
 class OpenCodeClient:
     """Cliente HTTP para se comunicar com o servidor OpenCode"""
-    
+
     def __init__(self, host: str = OPENCODE_HOST, port: int = OPENCODE_PORT):
         self.base_url = f"http://{host}:{port}"
         self.http = httpx.AsyncClient(timeout=300.0)
-    
+
     async def health(self) -> Dict[str, Any]:
         """Check server health"""
         try:
@@ -736,18 +741,18 @@ class OpenCodeClient:
             return r.json()
         except Exception as e:
             return {"healthy": False, "error": str(e)}
-    
+
     async def list_agents(self) -> List[Dict[str, Any]]:
         """Listar todos os agentes disponíveis"""
         try:
             r = await self.http.get(f"{self.base_url}/app.agents")
             return r.json().get("data", [])
         except Exception as e:
-            print(f"Erro ao listar agentes: {e}")
+            print(f"Error listing agents: {e}")
             return []
-    
+
     async def create_session(self, title: str = "Finances Session") -> Dict[str, Any]:
-        """Criar nova sessão"""
+        """Create new session"""
         try:
             r = await self.http.post(
                 f"{self.base_url}/session.create",
@@ -755,9 +760,9 @@ class OpenCodeClient:
             )
             return r.json().get("data", {})
         except Exception as e:
-            print(f"Erro ao criar sessão: {e}")
+            print(f"Error creating session: {e}")
             raise
-    
+
     async def send_prompt(
         self,
         session_id: str,
@@ -766,29 +771,29 @@ class OpenCodeClient:
         agent: Optional[str] = None  # ← AGENTE EXPLICÍTAMENTE SELECIONADO
     ) -> Dict[str, Any]:
         """Enviar prompt para a sessão com seleção explícita de agente"""
-        
+
         # Construir body com partes da mensagem
         body = {
             "parts": [{"type": "text", "text": message}]
         }
-        
+
         # Adicionar model se especificado
         if model:
             # Mapear para provider/model ID do OpenCode
             model_map = {
-                "google/gemini-3-pro-preview": {"providerID": "google", "modelID": "gemini-3-pro-preview"},
-                "google/gemini-3-flash": {"providerID": "google", "modelID": "gemini-3-flash"},
+                "google/gemini-1-5-pro": {"providerID": "google", "modelID": "gemini-3-pro-preview"},
+                "google/gemini-1-5-flash": {"providerID": "google", "modelID": "gemini-3-flash"},
                 "google/gemini-1-5-pro": {"providerID": "google", "modelID": "gemini-1-5-pro"},
             }
             if model in model_map:
                 body["model"] = model_map[model]
             else:
                 body["model"] = {"providerID": "google", "modelID": model}
-        
+
         # ← AGENTE SELECIONADO EXPLICITAMENTE
         if agent:
             body["agent"] = agent
-        
+
         try:
             r = await self.http.post(
                 f"{self.base_url}/session.prompt",
@@ -796,34 +801,34 @@ class OpenCodeClient:
             )
             return r.json()
         except Exception as e:
-            print(f"Erro ao enviar prompt: {e}")
+            print(f"Error sending prompt: {e}")
             raise
-    
+
     async def get_messages(self, session_id: str) -> List[Dict[str, Any]]:
         """Obter mensagens da sessão"""
         try:
             r = await self.http.get(f"{self.base_url}/session.messages", params={"path": {"id": session_id}})
             return r.json().get("data", {}).get("messages", [])
         except Exception as e:
-            print(f"Erro ao obter mensagens: {e}")
+            print(f"Error getting messages: {e}")
             return []
-    
+
     async def close_session(self, session_id: str) -> bool:
         """Fechar sessão"""
         try:
             r = await self.http.delete(f"{self.base_url}/session.delete", params={"path": {"id": session_id}})
             return r.status_code == 200
         except Exception as e:
-            print(f"Erro ao fechar sessão: {e}")
+            print(f"Error closing session: {e}")
             return False
-    
+
     async def abort_session(self, session_id: str) -> bool:
         """Abortar sessão em execução"""
         try:
             r = await self.http.post(f"{self.base_url}/session.abort", json={"path": {"id": session_id}})
             return r.status_code == 200
         except Exception as e:
-            print(f"Erro ao abortar sessão: {e}")
+            print(f"Error aborting session: {e}")
             return False
 
 # Cliente OpenCode global
@@ -878,32 +883,32 @@ async def list_agents():
 async def start_session(request: SessionStartRequest):
     """
     Iniciar nova sessão com o Finances Orchestrator agent.
-    
+
     O agente é SELECIONADO EXPLICITAMENTE no body do prompt.
-    
+
     Fluxo:
     1. Criar sessão no OpenCode (sem agente ainda)
     2. Enviar prompt com agent explícito no body
     3. Obter resposta do agente selecionado
-    
+
     Args:
         request: message, chat_id, agent (default: finances-orchestrator), model
-    
+
     Returns:
         session_id, opencode_session_id, e response inicial
     """
     session_id = str(uuid.uuid4())
-    
+
     try:
         # 1. Criar sessão no OpenCode
         opencode_session = await opencode_client.create_session(
             title=f"[{request.agent}] Chat {request.chat_id}"
         )
         opencode_session_id = opencode_session.get("id")
-        
+
         if not opencode_session_id:
             raise HTTPException(status_code=500, detail="Falha ao criar sessão no OpenCode")
-        
+
         # 2. Enviar prompt INICIAL com agente SELECIONADO EXPLICITAMENTE
         result = await opencode_client.send_prompt(
             session_id=opencode_session_id,
@@ -911,10 +916,10 @@ async def start_session(request: SessionStartRequest):
             model=request.model,
             agent=request.agent  # ← AGENTE SELECIONADO!
         )
-        
+
         # 3. Obter resposta
         messages = await opencode_client.get_messages(opencode_session_id)
-        
+
         # Extrair última mensagem do assistente
         assistant_response = ""
         for msg in reversed(messages):
@@ -922,7 +927,7 @@ async def start_session(request: SessionStartRequest):
                 parts = msg.get("parts", [])
                 assistant_response = " ".join(p.get("text", "") for p in parts)
                 break
-        
+
         # 4. Salvar sessão
         session = FinanceSession(
             session_id=session_id,
@@ -934,7 +939,7 @@ async def start_session(request: SessionStartRequest):
             model=request.model
         )
         sessions[session_id] = session
-        
+
         return {
             "session_id": session_id,
             "opencode_session_id": opencode_session_id,
@@ -944,7 +949,7 @@ async def start_session(request: SessionStartRequest):
             "model": request.model,
             "started_at": session.started_at.isoformat()
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -952,28 +957,28 @@ async def start_session(request: SessionStartRequest):
 async def continue_session(session_id: str, request: SessionContinueRequest):
     """
     Continuar uma sessão existente.
-    
+
     Usa o mesmo agente da sessão original.
     """
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Sessão não encontrada")
-    
+
     session = sessions[session_id]
-    
+
     try:
         # Enviar nova mensagem com o MESMO agente
         full_message = f"{session.user_message}\n\n---\n\n{request.message}"
-        
+
         result = await opencode_client.send_prompt(
             session_id=session.opencode_session_id,
             message=request.message,
             model=session.model,
             agent=session.agent_name  # ← USA O MESMO AGENTE!
         )
-        
+
         # Obter respostas
         messages = await opencode_client.get_messages(session.opencode_session_id)
-        
+
         # Extrair nova resposta
         new_response = ""
         for msg in reversed(messages):
@@ -981,19 +986,19 @@ async def continue_session(session_id: str, request: SessionContinueRequest):
                 parts = msg.get("parts", [])
                 new_response = " ".join(p.get("text", "") for p in parts)
                 break
-        
+
         # Atualizar sessão
         session.user_message = full_message
         session.agent_response = new_response
         session.completed_at = datetime.now()
-        
+
         return {
             "session_id": session_id,
             "status": "completed",
             "response": new_response,
             "started_at": session.started_at.isoformat()
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1001,21 +1006,21 @@ async def continue_session(session_id: str, request: SessionContinueRequest):
 async def send_audio(session_id: str, file: UploadFile = File(...)):
     """
     Enviar áudio para análise.
-    
+
     O áudio é enviado para o OpenCode que pode processá-lo
     se tiver suporte a multimodal.
     """
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Sessão não encontrada")
-    
+
     session = sessions[session_id]
-    
+
     # Ler conteúdo do áudio
     audio_content = await file.read()
-    
+
     # Stub: Em implementação real, enviar áudio para processamento
-    # O OpenCode 1.5 Pro suporta áudio multimodal
-    
+    # OpenCode 1.5 Pro supports multimodal audio
+
     return {
         "session_id": session_id,
         "status": "processing",
@@ -1031,11 +1036,11 @@ async def send_image(session_id: str, file: UploadFile = File(...)):
     """
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Sessão não encontrada")
-    
+
     session = sessions[session_id]
-    
+
     image_content = await file.read()
-    
+
     return {
         "session_id": session_id,
         "status": "processing",
@@ -1049,9 +1054,9 @@ async def get_session_status(session_id: str):
     """Obter status de uma sessão."""
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Sessão não encontrada")
-    
+
     session = sessions[session_id]
-    
+
     return {
         "session_id": session_id,
         "opencode_session_id": session.opencode_session_id,
@@ -1084,15 +1089,15 @@ async def delete_session(session_id: str):
     """Fechar e deletar uma sessão."""
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Sessão não encontrada")
-    
+
     session = sessions[session_id]
-    
+
     # Fechar sessão no OpenCode
     await opencode_client.close_session(session.opencode_session_id)
-    
+
     # Remover da memória
     del sessions[session_id]
-    
+
     return {"status": "deleted", "session_id": session_id}
 
 # ============================================================
@@ -1114,17 +1119,17 @@ if __name__ == "__main__":
       - GET  /agents (lista agentes disponíveis)
       - GET  /health
    ====================================
-   
-   ⚠️  Pré-requisitos:
+
+   ⚠️  Prerequisites:
    1. OpenCode deve estar rodando em localhost:4096
    2. Execute: opencode --port {OPENCODE_PORT}
    3. Ou: opencode (usa porta padrão 4096)
    ====================================
     """)
-    
+
     uvicorn.run(
-        app, 
-        host="0.0.0.0", 
+        app,
+        host="0.0.0.0",
         port=WRAPPER_PORT,
         log_level="info"
     )
@@ -1188,7 +1193,7 @@ curl -X POST http://localhost:5147/session/start \
     "message": "Analise meu portfólio de investimentos",
     "chat_id": 123456789,
     "agent": "finances-orchestrator",
-    "model": "google/gemini-3-pro-preview"
+    "model": "google/gemini-1-5-pro"
   }'
 
 # Response:
@@ -1196,9 +1201,9 @@ curl -X POST http://localhost:5147/session/start \
 #   "session_id": "abc123-def456",
 #   "opencode_session_id": "xyz789",
 #   "status": "completed",
-#   "response": "📊 Análise do seu portfólio...",
+#   "response": "📊 Portfolio analysis...",
 #   "agent": "finances-orchestrator",
-#   "model": "google/gemini-3-pro-preview",
+#   "model": "google/gemini-1-5-pro",
 #   "started_at": "2026-01-16T15:30:00Z"
 # }
 
@@ -1211,7 +1216,7 @@ curl -X POST http://localhost:5147/session/abc123-def456/continue \
 # {
 #   "session_id": "abc123-def456",
 #   "status": "completed",
-#   "response": "📈 Projeção para Q1...",
+#   "response": "📈 Q1 projection...",
 #   "started_at": "2026-01-16T15:30:00Z"
 # }
 ```
@@ -1249,26 +1254,25 @@ session_id: abc123
 user_id: 123456789
 started_at: 2024-01-15T10:30:00Z
 completed_at: 2024-01-15T10:35:00Z
-model: google/gemini-3-pro-preview
+model: google/gemini-1-5-pro
 ---
 
-## Resumo da Sessão
+## Session Summary
 
-Análise de investimento do portfólio de janeiro.
+January investment portfolio analysis.
 
-## Mensagens
+## Messages
 
-### Usuário
+### User
 Analise meu portfólio de investimentos
 
 ### Bot
 [Response...]
 
-## Resultados
+## Results
 
-- Análise gerada
-- Documento salvo: docs/investments/2024-01-15-analysis.md
-```
+- Analysis generated
+- Document saved: docs/investments/2024-01-15-analysis.md
 
 ### Daily Summaries
 
@@ -1281,21 +1285,21 @@ total_sessions: 5
 total_messages: 23
 ---
 
-## Resumo Diário
+## Daily Summary
 
-### Sessões Ativas
-1. abc123 - Análise de investimento
-2. def456 - Revisão de orçamento
-3. ghi789 - Consulta de saldo
+### Active Sessions
+1. abc123 - Investment analysis
+2. def456 - Budget review
+3. ghi789 - Balance inquiry
 
-### Métricas
+### Metrics
 - Total de mensagens: 23
 - Sessões concluídas: 3
 - Sessões ativas: 2
 
-### Observações
-- Usuário perguntou sobre FIIs pela primeira vez
-- Sessão de análise de investimento foi a mais longa (5 minutos)
+### Observations
+- User asked about FIIs for the first time
+- Investment analysis session was the longest (5 minutes)
 ```
 
 ---
@@ -1354,14 +1358,14 @@ class WebhookPayload(BaseModel):
 @app.post("/webhook/session-complete")
 async def session_complete(payload: WebhookPayload, request: Request):
     """Receive session completion from OpenCode"""
-    
+
     # Verify request (add your verification method)
     # if not verify_request(request):
     #     raise HTTPException(status_code=401, detail="Unauthorized")
-    
+
     # TODO: Send summary to Telegram user
     # This requires storing chat_id -> session_id mapping
-    
+
     return {"status": "received"}
 
 @app.get("/health")
@@ -1451,8 +1455,6 @@ For production deployment:
 
 ## Related Documentation
 
-- **Finances Agent Extension**: [finances-agent-extension.md](./finances-agent-extension.md)
-- **Oh-My-OpenCode Main Documentation**: [AGENTS.md](../AGENTS.md)
 - **Supabase Documentation**: https://supabase.com/docs
 - **Python Telegram Bot**: https://python-telegram-bot.org
 - **Tailscale Documentation**: https://tailscale.com/kb
