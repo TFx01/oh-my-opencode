@@ -40,58 +40,6 @@ const agentMetadata: Partial<Record<BuiltinAgentName, AgentPromptMetadata>> = {
   librarian: LIBRARIAN_PROMPT_METADATA,
   explore: EXPLORE_PROMPT_METADATA,
   "multimodal-looker": MULTIMODAL_LOOKER_PROMPT_METADATA,
-  // Finances agents
-  "finances-orchestrator": {
-    category: "advisor",
-    cost: "EXPENSIVE",
-    triggers: [
-      { domain: "General Finance", trigger: "Any financial question" },
-      { domain: "Multi-agent Task", trigger: "Complex analysis requiring multiple specialists" },
-    ],
-    keyTrigger: "finances, financial, money, budget, investment, tax",
-  },
-  "wallet-agent": {
-    category: "specialist",
-    cost: "CHEAP",
-    triggers: [
-      { domain: "Transactions", trigger: "balance, transaction, expense, income" },
-      { domain: "Account", trigger: "account, wallet, spending" },
-    ],
-    keyTrigger: "balance, transactions, expenses, spending",
-  },
-  "budget-analyst": {
-    category: "specialist",
-    cost: "CHEAP",
-    triggers: [
-      { domain: "Budget", trigger: "budget, forecast, variance, KPI" },
-    ],
-    keyTrigger: "budget, forecast, variance",
-  },
-  "investment-agent": {
-    category: "specialist",
-    cost: "EXPENSIVE",
-    triggers: [
-      { domain: "Portfolio", trigger: "portfolio, investments, holdings" },
-      { domain: "Opportunities", trigger: "opportunity, research, stock, FII" },
-    ],
-    keyTrigger: "invest, portfolio, stock, opportunity",
-  },
-  "tax-specialist-br": {
-    category: "specialist",
-    cost: "EXPENSIVE",
-    triggers: [
-      { domain: "Taxes", trigger: "tax, imposto, IRPF, deduction" },
-    ],
-    keyTrigger: "tax, imposto, IRPF, deduction, declare",
-  },
-  "regulatory-agent": {
-    category: "specialist",
-    cost: "EXPENSIVE",
-    triggers: [
-      { domain: "Regulations", trigger: "regulation, CVM, compliance, BCB" },
-    ],
-    keyTrigger: "regulation, CVM, compliance, rule",
-  },
 }
 
 function isFactory(source: AgentSource): source is AgentFactory {
