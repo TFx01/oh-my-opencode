@@ -1,6 +1,6 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
 
-export type AgentFactory = (model?: string) => AgentConfig
+export type AgentFactory = (model: string) => AgentConfig
 
 /**
  * Agent category for grouping in Sisyphus prompt sections
@@ -57,26 +57,14 @@ export function isGptModel(model: string): boolean {
 }
 
 export type BuiltinAgentName =
-  | "Sisyphus"
+  | "sisyphus"
   | "oracle"
   | "librarian"
   | "explore"
-  | "frontend-ui-ux-engineer"
-  | "document-writer"
   | "multimodal-looker"
-  | "Metis (Plan Consultant)"
-  | "Momus (Plan Reviewer)"
-  | "orchestrator-sisyphus"
-  | "finances-orchestrator"
-  | "wallet-agent"
-  | "budget-analyst"
-  | "investment-agent"
-  | "tax-specialist-br"
-  | "regulatory-agent"
-
-export function isGeminiModel(model: string): boolean {
-  return model.includes("gemini")
-}
+  | "metis"
+  | "momus"
+  | "atlas"
 
 export type OverridableAgentName =
   | "build"

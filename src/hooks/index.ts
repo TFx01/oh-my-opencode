@@ -28,5 +28,6 @@ export { createEditErrorRecoveryHook } from "./edit-error-recovery";
 export { createPrometheusMdOnlyHook } from "./prometheus-md-only";
 export { createTaskResumeInfoHook } from "./task-resume-info";
 export { createStartWorkHook } from "./start-work";
-export { createSisyphusOrchestratorHook } from "./sisyphus-orchestrator";
+export { createAtlasHook } from "./atlas";
 export { createDelegateTaskRetryHook } from "./delegate-task-retry";
+export { createQuestionLabelTruncatorHook } from "./question-label-truncator";

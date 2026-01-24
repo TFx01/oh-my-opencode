@@ -24,6 +24,7 @@ export class TaskToastManager {
     agent: string
     isBackground: boolean
     status?: TaskStatus
+    category?: string
     skills?: string[]
     modelInfo?: ModelFallbackInfo
   }): void {
@@ -34,6 +35,7 @@ export class TaskToastManager {
       status: task.status ?? "running",
       startedAt: new Date(),
       isBackground: task.isBackground,
+      category: task.category,
       skills: task.skills,
       modelInfo: task.modelInfo,
     }
@@ -116,7 +118,7 @@ export class TaskToastManager {
         "system-default": " (system default fallback)",
       }
       const suffix = suffixMap[newTask.modelInfo!.type as "inherited" | "system-default"]
-      lines.push(`⚠️ Model fallback: ${newTask.modelInfo!.model}${suffix}`)
+      lines.push(`[FALLBACK] Model: ${newTask.modelInfo!.model}${suffix}`)
       lines.push("")
     }
 
@@ -124,10 +126,11 @@ export class TaskToastManager {
       lines.push(`Running (${running.length}):${concurrencyInfo}`)
       for (const task of running) {
         const duration = this.formatDuration(task.startedAt)
-        const bgIcon = task.isBackground ? "⚡" : "🔄"
+        const bgIcon = task.isBackground ? "[BG]" : "[RUN]"
         const isNew = task.id === newTask.id ? " ← NEW" : ""
+        const categoryInfo = task.category ? `/${task.category}` : ""
         const skillsInfo = task.skills?.length ? ` [${task.skills.join(", ")}]` : ""
-        lines.push(`${bgIcon} ${task.description} (${task.agent})${skillsInfo} - ${duration}${isNew}`)
+        lines.push(`${bgIcon} ${task.description} (${task.agent}${categoryInfo})${skillsInfo} - ${duration}${isNew}`)
       }
     }
 
@@ -135,9 +138,11 @@ export class TaskToastManager {
       if (lines.length > 0) lines.push("")
       lines.push(`Queued (${queued.length}):`)
       for (const task of queued) {
-        const bgIcon = task.isBackground ? "⏳" : "⏸️"
+        const bgIcon = task.isBackground ? "[Q]" : "[W]"
+        const categoryInfo = task.category ? `/${task.category}` : ""
         const skillsInfo = task.skills?.length ? ` [${task.skills.join(", ")}]` : ""
-        lines.push(`${bgIcon} ${task.description} (${task.agent})${skillsInfo}`)
+        const isNew = task.id === newTask.id ? " ← NEW" : ""
+        lines.push(`${bgIcon} ${task.description} (${task.agent}${categoryInfo})${skillsInfo} - Queued${isNew}`)
       }
     }
 
@@ -157,8 +162,8 @@ export class TaskToastManager {
     const queued = this.getQueuedTasks()
 
     const title = newTask.isBackground
-      ? `⚡ New Background Task`
-      : `🔄 New Task Executed`
+      ? `New Background Task`
+      : `New Task Executed`
 
     tuiClient.tui.showToast({
       body: {
@@ -183,7 +188,7 @@ export class TaskToastManager {
     const remaining = this.getRunningTasks()
     const queued = this.getQueuedTasks()
 
-    let message = `✅ "${task.description}" finished in ${task.duration}`
+    let message = `"${task.description}" finished in ${task.duration}`
     if (remaining.length > 0 || queued.length > 0) {
       message += `\n\nStill running: ${remaining.length} | Queued: ${queued.length}`
     }

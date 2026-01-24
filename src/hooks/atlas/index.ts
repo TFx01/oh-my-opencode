@@ -13,7 +13,7 @@ import { log } from "../../shared/logger"
 import { createSystemDirective, SYSTEM_DIRECTIVE_PREFIX, SystemDirectiveTypes } from "../../shared/system-directive"
 import type { BackgroundManager } from "../../features/background-agent"
 
-export const HOOK_NAME = "sisyphus-orchestrator"
+export const HOOK_NAME = "atlas"
 
 /**
  * Cross-platform check if a path is inside .sisyphus/ directory.
@@ -68,7 +68,7 @@ const VERIFICATION_REMINDER = `**MANDATORY: WHAT YOU MUST DO RIGHT NOW**
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⚠️ CRITICAL: Subagents FREQUENTLY LIE about completion.
+CRITICAL: Subagents FREQUENTLY LIE about completion.
 Tests FAILING, code has ERRORS, implementation INCOMPLETE - but they say "done".
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -107,17 +107,17 @@ const ORCHESTRATOR_DELEGATION_REQUIRED = `
 
 ---
 
-⚠️⚠️⚠️ ${createSystemDirective(SystemDirectiveTypes.DELEGATION_REQUIRED)} ⚠️⚠️⚠️
+${createSystemDirective(SystemDirectiveTypes.DELEGATION_REQUIRED)}
 
 **STOP. YOU ARE VIOLATING ORCHESTRATOR PROTOCOL.**
 
-You (orchestrator-sisyphus) are attempting to directly modify a file outside \`.sisyphus/\`.
+You (Atlas) are attempting to directly modify a file outside \`.sisyphus/\`.
 
 **Path attempted:** $FILE_PATH
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🚫 **THIS IS FORBIDDEN** (except for VERIFICATION purposes)
+**THIS IS FORBIDDEN** (except for VERIFICATION purposes)
 
 As an ORCHESTRATOR, you MUST:
 1. **DELEGATE** all implementation work via \`delegate_task\`
@@ -148,7 +148,7 @@ delegate_task(
 )
 \`\`\`
 
-⚠️⚠️⚠️ DELEGATE. DON'T IMPLEMENT. ⚠️⚠️⚠️
+DELEGATE. DON'T IMPLEMENT.
 
 ---
 `
@@ -274,6 +274,7 @@ function getGitDiffStats(directory: string): GitFileStat[] {
       cwd: directory,
       encoding: "utf-8",
       timeout: 5000,
+      stdio: ["pipe", "pipe", "pipe"],
     }).trim()
 
     if (!output) return []
@@ -282,6 +283,7 @@ function getGitDiffStats(directory: string): GitFileStat[] {
       cwd: directory,
       encoding: "utf-8",
       timeout: 5000,
+      stdio: ["pipe", "pipe", "pipe"],
     }).trim()
 
     const statusMap = new Map<string, "modified" | "added" | "deleted">()
@@ -393,12 +395,12 @@ function getMessageDir(sessionID: string): string | null {
 }
 
 function isCallerOrchestrator(sessionID?: string): boolean {
-  if (!sessionID) return false
-  const messageDir = getMessageDir(sessionID)
-  if (!messageDir) return false
-  const nearest = findNearestMessageWithFields(messageDir)
-  return nearest?.agent === "orchestrator-sisyphus"
-}
+   if (!sessionID) return false
+   const messageDir = getMessageDir(sessionID)
+   if (!messageDir) return false
+   const nearest = findNearestMessageWithFields(messageDir)
+   return nearest?.agent?.toLowerCase() === "atlas"
+ }
 
 interface SessionState {
   lastEventWasAbortError?: boolean
@@ -407,7 +409,7 @@ interface SessionState {
 
 const CONTINUATION_COOLDOWN_MS = 5000
 
-export interface SisyphusOrchestratorHookOptions {
+export interface AtlasHookOptions {
   directory: string
   backgroundManager?: BackgroundManager
 }
@@ -433,9 +435,9 @@ function isAbortError(error: unknown): boolean {
   return false
 }
 
-export function createSisyphusOrchestratorHook(
+export function createAtlasHook(
   ctx: PluginInput,
-  options?: SisyphusOrchestratorHookOptions
+  options?: AtlasHookOptions
 ) {
   const backgroundManager = options?.backgroundManager
   const sessions = new Map<string, SessionState>()
@@ -493,15 +495,15 @@ export function createSisyphusOrchestratorHook(
           : undefined
       }
 
-      await ctx.client.session.prompt({
-        path: { id: sessionID },
-        body: {
-          agent: "orchestrator-sisyphus",
-          ...(model !== undefined ? { model } : {}),
-          parts: [{ type: "text", text: prompt }],
-        },
-        query: { directory: ctx.directory },
-      })
+       await ctx.client.session.prompt({
+         path: { id: sessionID },
+         body: {
+            agent: "atlas",
+           ...(model !== undefined ? { model } : {}),
+           parts: [{ type: "text", text: prompt }],
+         },
+         query: { directory: ctx.directory },
+       })
 
       log(`[${HOOK_NAME}] Boulder continuation injected`, { sessionID })
     } catch (err) {
@@ -569,7 +571,7 @@ export function createSisyphusOrchestratorHook(
         }
 
         if (!isCallerOrchestrator(sessionID)) {
-          log(`[${HOOK_NAME}] Skipped: last agent is not orchestrator-sisyphus`, { sessionID })
+          log(`[${HOOK_NAME}] Skipped: last agent is not Atlas`, { sessionID })
           return
         }
 
