@@ -80,7 +80,8 @@
           "prometheus-md-only",
           "sisyphus-junior-notepad",
           "start-work",
-          "atlas"
+          "atlas",
+          "stop-continuation-guard"
         ]
       }
     },
@@ -2768,7 +2769,8 @@
           "type": "string",
           "enum": [
             "playwright",
-            "agent-browser"
+            "agent-browser",
+            "dev-browser"
           ]
         }
       }

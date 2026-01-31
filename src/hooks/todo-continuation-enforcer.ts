@@ -18,12 +18,14 @@ const DEFAULT_SKIP_AGENTS = ["prometheus", "compaction"]
 export interface TodoContinuationEnforcerOptions {
   backgroundManager?: BackgroundManager
   skipAgents?: string[]
+  isContinuationStopped?: (sessionID: string) => boolean
 }
 
 export interface TodoContinuationEnforcer {
   handler: (input: { event: { type: string; properties?: unknown } }) => Promise<void>
   markRecovering: (sessionID: string) => void
   markRecoveryComplete: (sessionID: string) => void
+  cancelAllCountdowns: () => void
 }
 
 interface Todo {
@@ -95,7 +97,7 @@ export function createTodoContinuationEnforcer(
   ctx: PluginInput,
   options: TodoContinuationEnforcerOptions = {}
 ): TodoContinuationEnforcer {
-  const { backgroundManager, skipAgents = DEFAULT_SKIP_AGENTS } = options
+  const { backgroundManager, skipAgents = DEFAULT_SKIP_AGENTS, isContinuationStopped } = options
   const sessions = new Map<string, SessionState>()
 
   function getState(sessionID: string): SessionState {
@@ -205,7 +207,11 @@ export function createTodoContinuationEnforcer(
       const prevMessage = messageDir ? findNearestMessageWithFields(messageDir) : null
       agentName = agentName ?? prevMessage?.agent
       model = model ?? (prevMessage?.model?.providerID && prevMessage?.model?.modelID
-        ? { providerID: prevMessage.model.providerID, modelID: prevMessage.model.modelID }
+        ? { 
+            providerID: prevMessage.model.providerID, 
+            modelID: prevMessage.model.modelID,
+            ...(prevMessage.model.variant ? { variant: prevMessage.model.variant } : {})
+          }
         : undefined)
       tools = tools ?? prevMessage?.tools
     }
@@ -416,6 +422,11 @@ export function createTodoContinuationEnforcer(
         return
       }
 
+      if (isContinuationStopped?.(sessionID)) {
+        log(`[${HOOK_NAME}] Skipped: continuation stopped for session`, { sessionID })
+        return
+      }
+
       startCountdown(sessionID, incompleteCount, todos.length, resolvedInfo)
       return
     }
@@ -481,9 +492,17 @@ export function createTodoContinuationEnforcer(
     }
   }
 
+  const cancelAllCountdowns = (): void => {
+    for (const sessionID of sessions.keys()) {
+      cancelCountdown(sessionID)
+    }
+    log(`[${HOOK_NAME}] All countdowns cancelled`)
+  }
+
   return {
     handler,
     markRecovering,
     markRecoveryComplete,
+    cancelAllCountdowns,
   }
 }

@@ -12,8 +12,6 @@ import {
   createThinkModeHook,
   createClaudeCodeHooksHook,
   createAnthropicContextWindowLimitRecoveryHook,
-
-  createCompactionContextInjector,
   createRulesInjectorHook,
   createBackgroundNotificationHook,
   createAutoUpdateCheckerHook,
@@ -35,12 +33,13 @@ import {
   createSisyphusJuniorNotepadHook,
   createQuestionLabelTruncatorHook,
   createSubagentQuestionBlockerHook,
+  createStopContinuationGuardHook,
 } from "./hooks";
 import {
   contextCollector,
   createContextInjectorMessagesTransformHook,
 } from "./features/context-injector";
-import { applyAgentVariant, resolveAgentVariant } from "./shared/agent-variant";
+import { applyAgentVariant, resolveAgentVariant, resolveVariantForModel } from "./shared/agent-variant";
 import { createFirstMessageVariantGate } from "./shared/first-message-variant";
 import {
   discoverUserClaudeSkills,
@@ -77,10 +76,11 @@ import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
 import { TmuxSessionManager } from "./features/tmux-subagent";
+import { clearBoulderState } from "./features/boulder-state";
 import { type HookName } from "./config";
-import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, includesCaseInsensitive } from "./shared";
+import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor, hasConnectedProvidersCache, getOpenCodeVersion, isOpenCodeVersionAtLeast, OPENCODE_NATIVE_AGENTS_INJECTION_VERSION } from "./shared";
 import { loadPluginConfig } from "./plugin-config";
-import { createModelCacheState, getModelLimit } from "./plugin-state";
+import { createModelCacheState } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
@@ -118,7 +118,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     
     if (externalNotifier.detected && !forceEnable) {
       // External notification plugin detected - skip our notification to avoid conflicts
-      console.warn(getNotificationConflictWarning(externalNotifier.pluginName!));
+      log(getNotificationConflictWarning(externalNotifier.pluginName!));
       log("session-notification disabled due to external notifier conflict", {
         detected: externalNotifier.pluginName,
         allPlugins: externalNotifier.allPlugins,
@@ -136,9 +136,22 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         experimental: pluginConfig.experimental,
       })
     : null;
-  const directoryAgentsInjector = isHookEnabled("directory-agents-injector")
-    ? createDirectoryAgentsInjectorHook(ctx)
-    : null;
+  // Check for native OpenCode AGENTS.md injection support before creating hook
+  let directoryAgentsInjector = null;
+  if (isHookEnabled("directory-agents-injector")) {
+    const currentVersion = getOpenCodeVersion();
+    const hasNativeSupport = currentVersion !== null &&
+      isOpenCodeVersionAtLeast(OPENCODE_NATIVE_AGENTS_INJECTION_VERSION);
+
+    if (hasNativeSupport) {
+      log("directory-agents-injector auto-disabled due to native OpenCode support", {
+        currentVersion,
+        nativeVersion: OPENCODE_NATIVE_AGENTS_INJECTION_VERSION,
+      });
+    } else {
+      directoryAgentsInjector = createDirectoryAgentsInjectorHook(ctx);
+    }
+  }
   const directoryReadmeInjector = isHookEnabled("directory-readme-injector")
     ? createDirectoryReadmeInjectorHook(ctx)
     : null;
@@ -161,9 +174,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         experimental: pluginConfig.experimental,
       })
     : null;
-  const compactionContextInjector = isHookEnabled("compaction-context-injector")
-    ? createCompactionContextInjector()
-    : undefined;
   const rulesInjector = isHookEnabled("rules-injector")
     ? createRulesInjectorHook(ctx)
     : null;
@@ -251,6 +261,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       });
       log("[index] onSubagentSessionCreated callback completed");
     },
+    onShutdown: () => {
+      tmuxSessionManager.cleanup().catch((error) => {
+        log("[index] tmux cleanup error during shutdown:", error)
+      })
+    },
   });
 
   const atlasHook = isHookEnabled("atlas")
@@ -259,8 +274,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   initTaskToastManager(ctx.client);
 
+  const stopContinuationGuard = isHookEnabled("stop-continuation-guard")
+    ? createStopContinuationGuardHook(ctx)
+    : null;
+
   const todoContinuationEnforcer = isHookEnabled("todo-continuation-enforcer")
-    ? createTodoContinuationEnforcer(ctx, { backgroundManager })
+    ? createTodoContinuationEnforcer(ctx, {
+        backgroundManager,
+        isContinuationStopped: stopContinuationGuard?.isStopped,
+      })
     : null;
 
   if (sessionRecovery && todoContinuationEnforcer) {
@@ -276,9 +298,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const backgroundTools = createBackgroundTools(backgroundManager, ctx.client);
 
   const callOmoAgent = createCallOmoAgent(ctx, backgroundManager);
-  const isMultimodalLookerEnabled = !includesCaseInsensitive(
-    pluginConfig.disabled_agents ?? [],
-    "multimodal-looker"
+  const isMultimodalLookerEnabled = !(pluginConfig.disabled_agents ?? []).some(
+    (agent) => agent.toLowerCase() === "multimodal-looker"
   );
   const lookAt = isMultimodalLookerEnabled ? createLookAt(ctx) : null;
   const browserProvider = pluginConfig.browser_automation_engine?.provider ?? "playwright";
@@ -384,19 +405,40 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
       const message = (output as { message: { variant?: string } }).message
       if (firstMessageVariantGate.shouldOverride(input.sessionID)) {
-        const variant = resolveAgentVariant(pluginConfig, input.agent)
+        const variant = input.model && input.agent
+          ? resolveVariantForModel(pluginConfig, input.agent, input.model)
+          : resolveAgentVariant(pluginConfig, input.agent)
         if (variant !== undefined) {
           message.variant = variant
         }
         firstMessageVariantGate.markApplied(input.sessionID)
       } else {
-        applyAgentVariant(pluginConfig, input.agent, message)
+        if (input.model && input.agent && message.variant === undefined) {
+          const variant = resolveVariantForModel(pluginConfig, input.agent, input.model)
+          if (variant !== undefined) {
+            message.variant = variant
+          }
+        } else {
+          applyAgentVariant(pluginConfig, input.agent, message)
+        }
       }
 
+      await stopContinuationGuard?.["chat.message"]?.(input);
       await keywordDetector?.["chat.message"]?.(input, output);
       await claudeCodeHooks["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
+
+      if (!hasConnectedProvidersCache()) {
+        ctx.client.tui.showToast({
+          body: {
+            title: "⚠️ Provider Cache Missing",
+            message: "Model filtering disabled. RESTART OpenCode to enable full functionality.",
+            variant: "warning" as const,
+            duration: 6000,
+          },
+        }).catch(() => {});
+      }
 
       if (ralphLoop) {
         const parts = (
@@ -483,6 +525,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await categorySkillReminder?.event(input);
       await interactiveBashSession?.event(input);
       await ralphLoop?.event(input);
+      await stopContinuationGuard?.event(input);
       await atlasHook?.handler(input);
 
       const { event } = input;
@@ -543,7 +586,12 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           const recovered =
             await sessionRecovery.handleSessionRecovery(messageInfo);
 
-          if (recovered && sessionID && sessionID === getMainSessionID()) {
+          if (
+            recovered &&
+            sessionID &&
+            sessionID === getMainSessionID() &&
+            !stopContinuationGuard?.isStopped(sessionID)
+          ) {
             await ctx.client.session
               .prompt({
                 path: { id: sessionID },
@@ -572,9 +620,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;
         const subagentType = args.subagent_type as string;
-        const isExploreOrLibrarian = includesCaseInsensitive(
-          ["explore", "librarian"],
-          subagentType ?? ""
+        const isExploreOrLibrarian = ["explore", "librarian"].some(
+          (name) => name.toLowerCase() === (subagentType ?? "").toLowerCase()
         );
 
         args.tools = {
@@ -626,17 +673,35 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
            );
 
            ralphLoop.startLoop(sessionID, prompt, {
-             ultrawork: true,
-             maxIterations: maxIterMatch
-               ? parseInt(maxIterMatch[1], 10)
-               : undefined,
-             completionPromise: promiseMatch?.[1],
-           });
+              ultrawork: true,
+              maxIterations: maxIterMatch
+                ? parseInt(maxIterMatch[1], 10)
+                : undefined,
+              completionPromise: promiseMatch?.[1],
+            });
          }
+      }
+
+      if (input.tool === "slashcommand") {
+        const args = output.args as { command?: string } | undefined;
+        const command = args?.command?.replace(/^\//, "").toLowerCase();
+        const sessionID = input.sessionID || getMainSessionID();
+
+        if (command === "stop-continuation" && sessionID) {
+          stopContinuationGuard?.stop(sessionID);
+          todoContinuationEnforcer?.cancelAllCountdowns();
+          ralphLoop?.cancelLoop(sessionID);
+          clearBoulderState(ctx.directory);
+          log("[stop-continuation] All continuation mechanisms stopped", { sessionID });
+        }
       }
     },
 
     "tool.execute.after": async (input, output) => {
+      // Guard against undefined output (e.g., from /review command - see issue #1035)
+      if (!output) {
+        return;
+      }
       await claudeCodeHooks["tool.execute.after"](input, output);
       await toolOutputTruncator?.["tool.execute.after"](input, output);
       await contextWindowMonitor?.["tool.execute.after"](input, output);

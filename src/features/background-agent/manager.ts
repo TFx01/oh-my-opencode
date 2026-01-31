@@ -5,7 +5,7 @@ import type {
   LaunchInput,
   ResumeInput,
 } from "./types"
-import { log, getAgentToolRestrictions } from "../../shared"
+import { log, getAgentToolRestrictions, promptWithModelSuggestionRetry } from "../../shared"
 import { ConcurrencyManager } from "./concurrency"
 import type { BackgroundTaskConfig, TmuxConfig } from "../../config/schema"
 import { isInsideTmux } from "../../shared/tmux"
@@ -79,9 +79,11 @@ export class BackgroundManager {
   private config?: BackgroundTaskConfig
   private tmuxEnabled: boolean
   private onSubagentSessionCreated?: OnSubagentSessionCreated
+  private onShutdown?: () => void
 
   private queuesByKey: Map<string, QueueItem[]> = new Map()
   private processingKeys: Set<string> = new Set()
+  private completionTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()
 
   constructor(
     ctx: PluginInput,
@@ -89,6 +91,7 @@ export class BackgroundManager {
     options?: {
       tmuxConfig?: TmuxConfig
       onSubagentSessionCreated?: OnSubagentSessionCreated
+      onShutdown?: () => void
     }
   ) {
     this.tasks = new Map()
@@ -100,6 +103,7 @@ export class BackgroundManager {
     this.config = config
     this.tmuxEnabled = options?.tmuxConfig?.enabled ?? false
     this.onSubagentSessionCreated = options?.onSubagentSessionCreated
+    this.onShutdown = options?.onShutdown
     this.registerProcessCleanup()
   }
 
@@ -304,7 +308,7 @@ export class BackgroundManager {
       : undefined
     const launchVariant = input.model?.variant
 
-    this.client.session.prompt({
+    promptWithModelSuggestionRetry(this.client, {
       path: { id: sessionID },
       body: {
         agent: input.agent,
@@ -705,7 +709,11 @@ export class BackgroundManager {
          this.concurrencyManager.release(task.concurrencyKey)
          task.concurrencyKey = undefined
        }
-      // Clean up pendingByParent to prevent stale entries
+      const existingTimer = this.completionTimers.get(task.id)
+      if (existingTimer) {
+        clearTimeout(existingTimer)
+        this.completionTimers.delete(task.id)
+      }
       this.cleanupPendingByParent(task)
       this.tasks.delete(task.id)
       this.clearNotificationsForTask(task.id)
@@ -1070,14 +1078,15 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
     }
 
     const taskId = task.id
-    setTimeout(() => {
-      // Guard: Only delete if task still exists (could have been deleted by session.deleted event)
+    const timer = setTimeout(() => {
+      this.completionTimers.delete(taskId)
       if (this.tasks.has(taskId)) {
         this.clearNotificationsForTask(taskId)
         this.tasks.delete(taskId)
         log("[background-agent] Removed completed task from memory:", taskId)
       }
     }, 5 * 60 * 1000)
+    this.completionTimers.set(taskId, timer)
   }
 
   private formatDuration(start: Date, end?: Date): string {
@@ -1346,7 +1355,25 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
     log("[background-agent] Shutting down BackgroundManager")
     this.stopPolling()
 
-    // Release concurrency for all running tasks first
+    // Abort all running sessions to prevent zombie processes (#1240)
+    for (const task of this.tasks.values()) {
+      if (task.status === "running" && task.sessionID) {
+        this.client.session.abort({
+          path: { id: task.sessionID },
+        }).catch(() => {})
+      }
+    }
+
+    // Notify shutdown listeners (e.g., tmux cleanup)
+    if (this.onShutdown) {
+      try {
+        this.onShutdown()
+      } catch (error) {
+        log("[background-agent] Error in onShutdown callback:", error)
+      }
+    }
+
+    // Release concurrency for all running tasks
     for (const task of this.tasks.values()) {
       if (task.concurrencyKey) {
         this.concurrencyManager.release(task.concurrencyKey)
@@ -1354,7 +1381,11 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
       }
     }
 
-    // Then clear all state (cancels any remaining waiters)
+    for (const timer of this.completionTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.completionTimers.clear()
+
     this.concurrencyManager.clear()
     this.tasks.clear()
     this.notifications.clear()
@@ -1375,7 +1406,10 @@ function registerProcessSignal(
   const listener = () => {
     handler()
     if (exitAfter) {
-      process.exit(0)
+      // Set exitCode and schedule exit after delay to allow other handlers to complete async cleanup
+      // Use 6s delay to accommodate LSP cleanup (5s timeout + 1s SIGKILL wait)
+      process.exitCode = 0
+      setTimeout(() => process.exit(), 6000)
     }
   }
   process.on(signal, listener)

@@ -170,6 +170,7 @@ function createBackgroundManager(): BackgroundManager {
   const client = {
     session: {
       prompt: async () => ({}),
+      abort: async () => ({}),
     },
   }
   return new BackgroundManager({ client, directory: tmpdir() } as unknown as PluginInput)
@@ -1053,6 +1054,7 @@ describe("BackgroundManager.resume model persistence", () => {
           promptCalls.push(args)
           return {}
         },
+        abort: async () => ({}),
       },
     }
     manager = new BackgroundManager({ client, directory: tmpdir() } as unknown as PluginInput)
@@ -1926,3 +1928,254 @@ describe("BackgroundManager.checkAndInterruptStaleTasks", () => {
   })
 })
 
+describe("BackgroundManager.shutdown session abort", () => {
+  test("should call session.abort for all running tasks during shutdown", () => {
+    // #given
+    const abortedSessionIDs: string[] = []
+    const client = {
+      session: {
+        prompt: async () => ({}),
+        abort: async (args: { path: { id: string } }) => {
+          abortedSessionIDs.push(args.path.id)
+          return {}
+        },
+      },
+    }
+    const manager = new BackgroundManager({ client, directory: tmpdir() } as unknown as PluginInput)
+
+    const task1: BackgroundTask = {
+      id: "task-1",
+      sessionID: "session-1",
+      parentSessionID: "parent-1",
+      parentMessageID: "msg-1",
+      description: "Running task 1",
+      prompt: "Test",
+      agent: "test-agent",
+      status: "running",
+      startedAt: new Date(),
+    }
+    const task2: BackgroundTask = {
+      id: "task-2",
+      sessionID: "session-2",
+      parentSessionID: "parent-2",
+      parentMessageID: "msg-2",
+      description: "Running task 2",
+      prompt: "Test",
+      agent: "test-agent",
+      status: "running",
+      startedAt: new Date(),
+    }
+
+    getTaskMap(manager).set(task1.id, task1)
+    getTaskMap(manager).set(task2.id, task2)
+
+    // #when
+    manager.shutdown()
+
+    // #then
+    expect(abortedSessionIDs).toContain("session-1")
+    expect(abortedSessionIDs).toContain("session-2")
+    expect(abortedSessionIDs).toHaveLength(2)
+  })
+
+  test("should not call session.abort for completed or cancelled tasks", () => {
+    // #given
+    const abortedSessionIDs: string[] = []
+    const client = {
+      session: {
+        prompt: async () => ({}),
+        abort: async (args: { path: { id: string } }) => {
+          abortedSessionIDs.push(args.path.id)
+          return {}
+        },
+      },
+    }
+    const manager = new BackgroundManager({ client, directory: tmpdir() } as unknown as PluginInput)
+
+    const completedTask: BackgroundTask = {
+      id: "task-completed",
+      sessionID: "session-completed",
+      parentSessionID: "parent-1",
+      parentMessageID: "msg-1",
+      description: "Completed task",
+      prompt: "Test",
+      agent: "test-agent",
+      status: "completed",
+      startedAt: new Date(),
+      completedAt: new Date(),
+    }
+    const cancelledTask: BackgroundTask = {
+      id: "task-cancelled",
+      sessionID: "session-cancelled",
+      parentSessionID: "parent-2",
+      parentMessageID: "msg-2",
+      description: "Cancelled task",
+      prompt: "Test",
+      agent: "test-agent",
+      status: "cancelled",
+      startedAt: new Date(),
+      completedAt: new Date(),
+    }
+    const pendingTask: BackgroundTask = {
+      id: "task-pending",
+      parentSessionID: "parent-3",
+      parentMessageID: "msg-3",
+      description: "Pending task",
+      prompt: "Test",
+      agent: "test-agent",
+      status: "pending",
+      queuedAt: new Date(),
+    }
+
+    getTaskMap(manager).set(completedTask.id, completedTask)
+    getTaskMap(manager).set(cancelledTask.id, cancelledTask)
+    getTaskMap(manager).set(pendingTask.id, pendingTask)
+
+    // #when
+    manager.shutdown()
+
+    // #then
+    expect(abortedSessionIDs).toHaveLength(0)
+  })
+
+  test("should call onShutdown callback during shutdown", () => {
+    // #given
+    let shutdownCalled = false
+    const client = {
+      session: {
+        prompt: async () => ({}),
+        abort: async () => ({}),
+      },
+    }
+    const manager = new BackgroundManager(
+      { client, directory: tmpdir() } as unknown as PluginInput,
+      undefined,
+      {
+        onShutdown: () => {
+          shutdownCalled = true
+        },
+      }
+    )
+
+    // #when
+    manager.shutdown()
+
+    // #then
+    expect(shutdownCalled).toBe(true)
+  })
+
+  test("should not throw when onShutdown callback throws", () => {
+    // #given
+    const client = {
+      session: {
+        prompt: async () => ({}),
+        abort: async () => ({}),
+      },
+    }
+    const manager = new BackgroundManager(
+      { client, directory: tmpdir() } as unknown as PluginInput,
+      undefined,
+      {
+        onShutdown: () => {
+          throw new Error("cleanup failed")
+        },
+      }
+    )
+
+    // #when / #then
+    expect(() => manager.shutdown()).not.toThrow()
+  })
+})
+
+describe("BackgroundManager.completionTimers - Memory Leak Fix", () => {
+  function getCompletionTimers(manager: BackgroundManager): Map<string, ReturnType<typeof setTimeout>> {
+    return (manager as unknown as { completionTimers: Map<string, ReturnType<typeof setTimeout>> }).completionTimers
+  }
+
+  function setCompletionTimer(manager: BackgroundManager, taskId: string): void {
+    const completionTimers = getCompletionTimers(manager)
+    const timer = setTimeout(() => {
+      completionTimers.delete(taskId)
+    }, 5 * 60 * 1000)
+    completionTimers.set(taskId, timer)
+  }
+
+  test("should have completionTimers Map initialized", () => {
+    // #given
+    const manager = createBackgroundManager()
+
+    // #when
+    const completionTimers = getCompletionTimers(manager)
+
+    // #then
+    expect(completionTimers).toBeDefined()
+    expect(completionTimers).toBeInstanceOf(Map)
+    expect(completionTimers.size).toBe(0)
+
+    manager.shutdown()
+  })
+
+  test("should clear all completion timers on shutdown", () => {
+    // #given
+    const manager = createBackgroundManager()
+    setCompletionTimer(manager, "task-1")
+    setCompletionTimer(manager, "task-2")
+
+    const completionTimers = getCompletionTimers(manager)
+    expect(completionTimers.size).toBe(2)
+
+    // #when
+    manager.shutdown()
+
+    // #then
+    expect(completionTimers.size).toBe(0)
+  })
+
+  test("should cancel timer when task is deleted via session.deleted", () => {
+    // #given
+    const manager = createBackgroundManager()
+    const task: BackgroundTask = {
+      id: "task-timer-4",
+      sessionID: "session-timer-4",
+      parentSessionID: "parent-session",
+      parentMessageID: "msg-1",
+      description: "Test task",
+      prompt: "test",
+      agent: "explore",
+      status: "completed",
+      startedAt: new Date(),
+    }
+    getTaskMap(manager).set(task.id, task)
+    setCompletionTimer(manager, task.id)
+
+    const completionTimers = getCompletionTimers(manager)
+    expect(completionTimers.size).toBe(1)
+
+    // #when
+    manager.handleEvent({
+      type: "session.deleted",
+      properties: {
+        info: { id: "session-timer-4" },
+      },
+    })
+
+    // #then
+    expect(completionTimers.has(task.id)).toBe(false)
+
+    manager.shutdown()
+  })
+
+  test("should not leak timers across multiple shutdown calls", () => {
+    // #given
+    const manager = createBackgroundManager()
+    setCompletionTimer(manager, "task-1")
+
+    // #when
+    manager.shutdown()
+    manager.shutdown()
+
+    // #then
+    const completionTimers = getCompletionTimers(manager)
+    expect(completionTimers.size).toBe(0)
+  })
+})
