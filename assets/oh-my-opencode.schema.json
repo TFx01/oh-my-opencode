@@ -8,6 +8,12 @@
     "$schema": {
       "type": "string"
     },
+    "new_task_system_enabled": {
+      "type": "boolean"
+    },
+    "default_run_agent": {
+      "type": "string"
+    },
     "disabled_mcps": {
       "type": "array",
       "items": {
@@ -21,6 +27,7 @@
         "type": "string",
         "enum": [
           "sisyphus",
+          "hephaestus",
           "prometheus",
           "oracle",
           "librarian",
@@ -39,6 +46,7 @@
         "enum": [
           "playwright",
           "agent-browser",
+          "dev-browser",
           "frontend-ui-ux",
           "git-master"
         ]
@@ -47,42 +55,7 @@
     "disabled_hooks": {
       "type": "array",
       "items": {
-        "type": "string",
-        "enum": [
-          "todo-continuation-enforcer",
-          "context-window-monitor",
-          "session-recovery",
-          "session-notification",
-          "comment-checker",
-          "grep-output-truncator",
-          "tool-output-truncator",
-          "directory-agents-injector",
-          "directory-readme-injector",
-          "empty-task-response-detector",
-          "think-mode",
-          "anthropic-context-window-limit-recovery",
-          "rules-injector",
-          "background-notification",
-          "auto-update-checker",
-          "startup-toast",
-          "keyword-detector",
-          "agent-usage-reminder",
-          "non-interactive-env",
-          "interactive-bash-session",
-          "thinking-block-validator",
-          "ralph-loop",
-          "category-skill-reminder",
-          "compaction-context-injector",
-          "claude-code-hooks",
-          "auto-slash-command",
-          "edit-error-recovery",
-          "delegate-task-retry",
-          "prometheus-md-only",
-          "sisyphus-junior-notepad",
-          "start-work",
-          "atlas",
-          "stop-continuation-guard"
-        ]
+        "type": "string"
       }
     },
     "disabled_commands": {
@@ -91,9 +64,23 @@
         "type": "string",
         "enum": [
           "init-deep",
-          "start-work"
+          "ralph-loop",
+          "ulw-loop",
+          "cancel-ralph",
+          "refactor",
+          "start-work",
+          "stop-continuation"
         ]
       }
+    },
+    "disabled_tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "hashline_edit": {
+      "type": "boolean"
     },
     "agents": {
       "type": "object",
@@ -104,6 +91,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -204,6 +204,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -220,7 +228,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -241,7 +250,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -266,8 +276,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "plan": {
           "type": "object",
@@ -275,6 +310,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -375,6 +423,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -391,7 +447,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -412,7 +469,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -437,8 +495,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "sisyphus": {
           "type": "object",
@@ -446,6 +529,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -546,6 +642,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -562,7 +666,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -583,7 +688,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -608,8 +714,252 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
+        },
+        "hephaestus": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string"
+            },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
+            "variant": {
+              "type": "string"
+            },
+            "category": {
+              "type": "string"
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "top_p": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "prompt_append": {
+              "type": "string"
+            },
+            "tools": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "boolean"
+              }
+            },
+            "disable": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "subagent",
+                "primary",
+                "all"
+              ]
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "permission": {
+              "type": "object",
+              "properties": {
+                "edit": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
+                "bash": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "ask",
+                        "allow",
+                        "deny"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string",
+                        "enum": [
+                          "ask",
+                          "allow",
+                          "deny"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "webfetch": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
+                "doom_loop": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
+                "external_directory": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxTokens": {
+              "type": "number"
+            },
+            "thinking": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "enabled",
+                    "disabled"
+                  ]
+                },
+                "budgetTokens": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": false
+            },
+            "reasoningEffort": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            },
+            "textVerbosity": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "providerOptions": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         },
         "sisyphus-junior": {
           "type": "object",
@@ -617,6 +967,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -717,6 +1080,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -733,7 +1104,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -754,7 +1126,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -779,8 +1152,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "OpenCode-Builder": {
           "type": "object",
@@ -788,6 +1186,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -888,6 +1299,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -904,7 +1323,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -925,7 +1345,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -950,8 +1371,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "prometheus": {
           "type": "object",
@@ -959,6 +1405,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -1059,6 +1518,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -1075,7 +1542,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -1096,7 +1564,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -1121,8 +1590,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "metis": {
           "type": "object",
@@ -1130,6 +1624,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -1230,6 +1737,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -1246,7 +1761,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -1267,7 +1783,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -1292,8 +1809,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "momus": {
           "type": "object",
@@ -1301,6 +1843,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -1401,6 +1956,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -1417,7 +1980,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -1438,7 +2002,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -1463,8 +2028,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "oracle": {
           "type": "object",
@@ -1472,6 +2062,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -1572,6 +2175,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -1588,7 +2199,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -1609,7 +2221,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -1634,8 +2247,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "librarian": {
           "type": "object",
@@ -1643,6 +2281,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -1743,6 +2394,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -1759,7 +2418,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -1780,7 +2440,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -1805,8 +2466,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "explore": {
           "type": "object",
@@ -1814,6 +2500,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -1914,6 +2613,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -1930,7 +2637,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -1951,7 +2659,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -1976,8 +2685,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "multimodal-looker": {
           "type": "object",
@@ -1985,6 +2719,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -2085,6 +2832,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -2101,7 +2856,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -2122,7 +2878,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -2147,8 +2904,33 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "atlas": {
           "type": "object",
@@ -2156,6 +2938,19 @@
             "model": {
               "type": "string"
             },
+            "fallback_models": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
             "variant": {
               "type": "string"
             },
@@ -2256,6 +3051,14 @@
                     "deny"
                   ]
                 },
+                "task": {
+                  "type": "string",
+                  "enum": [
+                    "ask",
+                    "allow",
+                    "deny"
+                  ]
+                },
                 "doom_loop": {
                   "type": "string",
                   "enum": [
@@ -2272,7 +3075,8 @@
                     "deny"
                   ]
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "maxTokens": {
               "type": "number"
@@ -2293,7 +3097,8 @@
               },
               "required": [
                 "type"
-              ]
+              ],
+              "additionalProperties": false
             },
             "reasoningEffort": {
               "type": "string",
@@ -2318,10 +3123,36 @@
                 "type": "string"
               },
               "additionalProperties": {}
+            },
+            "ultrawork": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "compaction": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "variant": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         }
-      }
+      },
+      "additionalProperties": false
     },
     "categories": {
       "type": "object",
@@ -2336,6 +3167,19 @@
           },
           "model": {
             "type": "string"
+          },
+          "fallback_models": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
           },
           "variant": {
             "type": "string"
@@ -2369,7 +3213,8 @@
             },
             "required": [
               "type"
-            ]
+            ],
+            "additionalProperties": false
           },
           "reasoningEffort": {
             "type": "string",
@@ -2402,8 +3247,12 @@
           },
           "is_unstable_agent": {
             "type": "boolean"
+          },
+          "disable": {
+            "type": "boolean"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "claude_code": {
@@ -2436,7 +3285,8 @@
             "type": "boolean"
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "sisyphus_agent": {
       "type": "object",
@@ -2453,7 +3303,8 @@
         "replace_plan": {
           "type": "boolean"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "comment_checker": {
       "type": "object",
@@ -2461,7 +3312,8 @@
         "custom_prompt": {
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "experimental": {
       "type": "object",
@@ -2470,6 +3322,9 @@
           "type": "boolean"
         },
         "auto_resume": {
+          "type": "boolean"
+        },
+        "preemptive_compaction": {
           "type": "boolean"
         },
         "truncate_all_tool_outputs": {
@@ -2504,7 +3359,12 @@
                   "minimum": 1,
                   "maximum": 10
                 }
-              }
+              },
+              "required": [
+                "enabled",
+                "turns"
+              ],
+              "additionalProperties": false
             },
             "protected_tools": {
               "default": [
@@ -2531,7 +3391,11 @@
                       "default": true,
                       "type": "boolean"
                     }
-                  }
+                  },
+                  "required": [
+                    "enabled"
+                  ],
+                  "additionalProperties": false
                 },
                 "supersede_writes": {
                   "type": "object",
@@ -2544,7 +3408,12 @@
                       "default": false,
                       "type": "boolean"
                     }
-                  }
+                  },
+                  "required": [
+                    "enabled",
+                    "aggressive"
+                  ],
+                  "additionalProperties": false
                 },
                 "purge_errors": {
                   "type": "object",
@@ -2559,13 +3428,45 @@
                       "minimum": 1,
                       "maximum": 20
                     }
-                  }
+                  },
+                  "required": [
+                    "enabled",
+                    "turns"
+                  ],
+                  "additionalProperties": false
                 }
-              }
+              },
+              "additionalProperties": false
             }
-          }
+          },
+          "required": [
+            "enabled",
+            "notification",
+            "protected_tools"
+          ],
+          "additionalProperties": false
+        },
+        "task_system": {
+          "type": "boolean"
+        },
+        "plugin_load_timeout_ms": {
+          "type": "number",
+          "minimum": 1000
+        },
+        "safe_hook_creation": {
+          "type": "boolean"
+        },
+        "disable_omo_env": {
+          "type": "boolean"
+        },
+        "hashline_edit": {
+          "type": "boolean"
+        },
+        "model_fallback_title": {
+          "type": "boolean"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "auto_update": {
       "type": "boolean"
@@ -2579,113 +3480,105 @@
           }
         },
         {
-          "allOf": [
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string"
-              },
-              "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "sources": {
+              "type": "array",
+              "items": {
                 "anyOf": [
                   {
-                    "type": "boolean"
+                    "type": "string"
                   },
                   {
                     "type": "object",
                     "properties": {
-                      "description": {
+                      "path": {
                         "type": "string"
                       },
-                      "template": {
-                        "type": "string"
-                      },
-                      "from": {
-                        "type": "string"
-                      },
-                      "model": {
-                        "type": "string"
-                      },
-                      "agent": {
-                        "type": "string"
-                      },
-                      "subtask": {
+                      "recursive": {
                         "type": "boolean"
                       },
-                      "argument-hint": {
+                      "glob": {
                         "type": "string"
-                      },
-                      "license": {
-                        "type": "string"
-                      },
-                      "compatibility": {
-                        "type": "string"
-                      },
-                      "metadata": {
-                        "type": "object",
-                        "propertyNames": {
-                          "type": "string"
-                        },
-                        "additionalProperties": {}
-                      },
-                      "allowed-tools": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "disable": {
-                        "type": "boolean"
                       }
-                    }
+                    },
+                    "required": [
+                      "path"
+                    ],
+                    "additionalProperties": false
                   }
                 ]
               }
             },
-            {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "path": {
-                            "type": "string"
-                          },
-                          "recursive": {
-                            "type": "boolean"
-                          },
-                          "glob": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "path"
-                        ]
-                      }
-                    ]
-                  }
-                },
-                "enable": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "disable": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
+            "enable": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "disable": {
+              "type": "array",
+              "items": {
+                "type": "string"
               }
             }
-          ]
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "template": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "agent": {
+                    "type": "string"
+                  },
+                  "subtask": {
+                    "type": "boolean"
+                  },
+                  "argument-hint": {
+                    "type": "string"
+                  },
+                  "license": {
+                    "type": "string"
+                  },
+                  "compatibility": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "allowed-tools": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "disable": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
         }
       ]
     },
@@ -2704,8 +3597,60 @@
         },
         "state_dir": {
           "type": "string"
+        },
+        "default_strategy": {
+          "default": "continue",
+          "type": "string",
+          "enum": [
+            "reset",
+            "continue"
+          ]
         }
-      }
+      },
+      "required": [
+        "enabled",
+        "default_max_iterations",
+        "default_strategy"
+      ],
+      "additionalProperties": false
+    },
+    "runtime_fallback": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "retry_on_errors": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "max_fallback_attempts": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "cooldown_seconds": {
+              "type": "number",
+              "minimum": 0
+            },
+            "timeout_seconds": {
+              "type": "number",
+              "minimum": 0
+            },
+            "notify_on_fallback": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "background_task": {
       "type": "object",
@@ -2737,8 +3682,13 @@
         "staleTimeoutMs": {
           "type": "number",
           "minimum": 60000
+        },
+        "messageStalenessTimeoutMs": {
+          "type": "number",
+          "minimum": 60000
         }
-      }
+      },
+      "additionalProperties": false
     },
     "notification": {
       "type": "object",
@@ -2746,20 +3696,46 @@
         "force_enable": {
           "type": "boolean"
         }
-      }
+      },
+      "additionalProperties": false
+    },
+    "babysitting": {
+      "type": "object",
+      "properties": {
+        "timeout_ms": {
+          "default": 120000,
+          "type": "number"
+        }
+      },
+      "required": [
+        "timeout_ms"
+      ],
+      "additionalProperties": false
     },
     "git_master": {
       "type": "object",
       "properties": {
         "commit_footer": {
           "default": true,
-          "type": "boolean"
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ]
         },
         "include_co_authored_by": {
           "default": true,
           "type": "boolean"
         }
-      }
+      },
+      "required": [
+        "commit_footer",
+        "include_co_authored_by"
+      ],
+      "additionalProperties": false
     },
     "browser_automation_engine": {
       "type": "object",
@@ -2770,10 +3746,28 @@
           "enum": [
             "playwright",
             "agent-browser",
-            "dev-browser"
+            "dev-browser",
+            "playwright-cli"
           ]
         }
-      }
+      },
+      "required": [
+        "provider"
+      ],
+      "additionalProperties": false
+    },
+    "websearch": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "exa",
+            "tavily"
+          ]
+        }
+      },
+      "additionalProperties": false
     },
     "tmux": {
       "type": "object",
@@ -2809,7 +3803,15 @@
           "type": "number",
           "minimum": 20
         }
-      }
+      },
+      "required": [
+        "enabled",
+        "layout",
+        "main_pane_size",
+        "main_pane_min_width",
+        "agent_pane_min_width"
+      ],
+      "additionalProperties": false
     },
     "sisyphus": {
       "type": "object",
@@ -2817,43 +3819,31 @@
         "tasks": {
           "type": "object",
           "properties": {
-            "enabled": {
-              "default": false,
-              "type": "boolean"
-            },
             "storage_path": {
-              "default": ".sisyphus/tasks",
+              "type": "string"
+            },
+            "task_list_id": {
               "type": "string"
             },
             "claude_code_compat": {
               "default": false,
               "type": "boolean"
             }
-          }
-        },
-        "swarm": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "default": false,
-              "type": "boolean"
-            },
-            "storage_path": {
-              "default": ".sisyphus/teams",
-              "type": "string"
-            },
-            "ui_mode": {
-              "default": "toast",
-              "type": "string",
-              "enum": [
-                "toast",
-                "tmux",
-                "both"
-              ]
-            }
-          }
+          },
+          "required": [
+            "claude_code_compat"
+          ],
+          "additionalProperties": false
         }
+      },
+      "additionalProperties": false
+    },
+    "_migrations": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     }
-  }
+  },
+  "additionalProperties": false
 }

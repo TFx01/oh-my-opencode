@@ -4,6 +4,9 @@ export interface TrackedSession {
   description: string
   createdAt: Date
   lastSeenAt: Date
+  // Stability detection fields (prevents premature closure)
+  lastMessageCount?: number
+  stableIdlePolls?: number
 }
 
 export const MIN_PANE_WIDTH = 52
@@ -40,6 +43,8 @@ export interface SpawnDecision {
 }
 
 export interface CapacityConfig {
+  layout?: string
+  mainPaneSize?: number
   mainPaneMinWidth: number
   agentPaneWidth: number
 }

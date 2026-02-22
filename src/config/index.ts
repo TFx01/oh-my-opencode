@@ -11,6 +11,8 @@ export {
   RalphLoopConfigSchema,
   TmuxConfigSchema,
   TmuxLayoutSchema,
+  RuntimeFallbackConfigSchema,
+  FallbackModelsSchema,
 } from "./schema"
 
 export type {
@@ -27,4 +29,8 @@ export type {
   RalphLoopConfig,
   TmuxConfig,
   TmuxLayout,
+  SisyphusConfig,
+  SisyphusTasksConfig,
+  RuntimeFallbackConfig,
+  FallbackModels,
 } from "./schema"

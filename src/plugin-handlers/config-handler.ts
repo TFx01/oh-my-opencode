@@ -1,39 +1,14 @@
-import { createBuiltinAgents } from "../agents";
-import { createSisyphusJuniorAgentWithOverrides } from "../agents/sisyphus-junior";
-import {
-  loadUserCommands,
-  loadProjectCommands,
-  loadOpencodeGlobalCommands,
-  loadOpencodeProjectCommands,
-} from "../features/claude-code-command-loader";
-import { loadBuiltinCommands } from "../features/builtin-commands";
-import {
-  loadUserSkills,
-  loadProjectSkills,
-  loadOpencodeGlobalSkills,
-  loadOpencodeProjectSkills,
-  discoverUserClaudeSkills,
-  discoverProjectClaudeSkills,
-  discoverOpencodeGlobalSkills,
-  discoverOpencodeProjectSkills,
-} from "../features/opencode-skill-loader";
-import {
-  loadUserAgents,
-  loadProjectAgents,
-} from "../features/claude-code-agent-loader";
-import { loadMcpConfigs } from "../features/claude-code-mcp-loader";
-import { loadAllPluginComponents } from "../features/claude-code-plugin-loader";
-import { createBuiltinMcps } from "../mcp";
 import type { OhMyOpenCodeConfig } from "../config";
-import { log, fetchAvailableModels, readConnectedProvidersCache, resolveModelPipeline } from "../shared";
-import { getOpenCodeConfigPaths } from "../shared/opencode-config-dir";
-import { migrateAgentConfig } from "../shared/permission-compat";
-import { AGENT_NAME_MAP } from "../shared/migration";
-import { AGENT_MODEL_REQUIREMENTS } from "../shared/model-requirements";
-import { PROMETHEUS_SYSTEM_PROMPT, PROMETHEUS_PERMISSION } from "../agents/prometheus-prompt";
-import { DEFAULT_CATEGORIES } from "../tools/delegate-task/constants";
 import type { ModelCacheState } from "../plugin-state";
-import type { CategoryConfig } from "../config/schema";
+import { log } from "../shared";
+import { applyAgentConfig } from "./agent-config-handler";
+import { applyCommandConfig } from "./command-config-handler";
+import { applyMcpConfig } from "./mcp-config-handler";
+import { applyProviderConfig } from "./provider-config-handler";
+import { loadPluginComponents } from "./plugin-components-loader";
+import { applyToolConfig } from "./tool-config-handler";
+
+export { resolveCategoryConfig } from "./category-config-resolver";
 
 export interface ConfigHandlerDeps {
   ctx: { directory: string; client?: any };
@@ -41,61 +16,26 @@ export interface ConfigHandlerDeps {
   modelCacheState: ModelCacheState;
 }
 
-export function resolveCategoryConfig(
-  categoryName: string,
-  userCategories?: Record<string, CategoryConfig>
-): CategoryConfig | undefined {
-  return userCategories?.[categoryName] ?? DEFAULT_CATEGORIES[categoryName];
-}
-
 export function createConfigHandler(deps: ConfigHandlerDeps) {
   const { ctx, pluginConfig, modelCacheState } = deps;
 
   return async (config: Record<string, unknown>) => {
-    type ProviderConfig = {
-      options?: { headers?: Record<string, string> };
-      models?: Record<string, { limit?: { context?: number } }>;
-    };
-    const providers = config.provider as
-      | Record<string, ProviderConfig>
-      | undefined;
+    applyProviderConfig({ config, modelCacheState });
 
-    const anthropicBeta =
-      providers?.anthropic?.options?.headers?.["anthropic-beta"];
-    modelCacheState.anthropicContext1MEnabled =
-      anthropicBeta?.includes("context-1m") ?? false;
+    const pluginComponents = await loadPluginComponents({ pluginConfig });
 
-    if (providers) {
-      for (const [providerID, providerConfig] of Object.entries(providers)) {
-        const models = providerConfig?.models;
-        if (models) {
-          for (const [modelID, modelConfig] of Object.entries(models)) {
-            const contextLimit = modelConfig?.limit?.context;
-            if (contextLimit) {
-              modelCacheState.modelContextLimitsCache.set(
-                `${providerID}/${modelID}`,
-                contextLimit
-              );
-            }
-          }
-        }
-      }
-    }
+    const agentResult = await applyAgentConfig({
+      config,
+      pluginConfig,
+      ctx,
+      pluginComponents,
+    });
 
-    const pluginComponents = (pluginConfig.claude_code?.plugins ?? true)
-      ? await loadAllPluginComponents({
-          enabledPluginsOverride: pluginConfig.claude_code?.plugins_override,
-        })
-      : {
-          commands: {},
-          skills: {},
-          agents: {},
-          mcpServers: {},
-          hooksConfigs: [],
-          plugins: [],
-          errors: [],
-        };
+    applyToolConfig({ config, pluginConfig, agentResult });
+    await applyMcpConfig({ config, pluginConfig, pluginComponents });
+    await applyCommandConfig({ config, pluginConfig, ctx, pluginComponents });
 
+<<<<<<< HEAD
     if (pluginComponents.plugins.length > 0) {
       log(`Loaded ${pluginComponents.plugins.length} Claude Code plugins`, {
         plugins: pluginComponents.plugins.map((p) => `${p.name}@${p.version}`),
@@ -455,5 +395,12 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       ...pluginComponents.commands,
       ...pluginComponents.skills,
     };
+=======
+    log("[config-handler] config handler applied", {
+      agentCount: Object.keys(agentResult).length,
+      commandCount: Object.keys((config.command as Record<string, unknown>) ?? {})
+        .length,
+    });
+>>>>>>> upstream/dev
   };
 }

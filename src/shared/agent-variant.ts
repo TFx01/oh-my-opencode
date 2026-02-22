@@ -37,23 +37,26 @@ export function resolveVariantForModel(
   agentName: string,
   currentModel: { providerID: string; modelID: string },
 ): string | undefined {
-  const agentRequirement = AGENT_MODEL_REQUIREMENTS[agentName]
-  if (agentRequirement) {
-    return findVariantInChain(agentRequirement.fallbackChain, currentModel.providerID)
-  }
-
   const agentOverrides = config.agents as
-    | Record<string, { category?: string }>
+    | Record<string, { variant?: string; category?: string }>
     | undefined
   const agentOverride = agentOverrides
     ? agentOverrides[agentName]
       ?? Object.entries(agentOverrides).find(([key]) => key.toLowerCase() === agentName.toLowerCase())?.[1]
     : undefined
+  if (agentOverride?.variant) {
+    return agentOverride.variant
+  }
+
+  const agentRequirement = AGENT_MODEL_REQUIREMENTS[agentName]
+  if (agentRequirement) {
+    return findVariantInChain(agentRequirement.fallbackChain, currentModel)
+  }
   const categoryName = agentOverride?.category
   if (categoryName) {
     const categoryRequirement = CATEGORY_MODEL_REQUIREMENTS[categoryName]
     if (categoryRequirement) {
-      return findVariantInChain(categoryRequirement.fallbackChain, currentModel.providerID)
+      return findVariantInChain(categoryRequirement.fallbackChain, currentModel)
     }
   }
 
@@ -62,10 +65,21 @@ export function resolveVariantForModel(
 
 function findVariantInChain(
   fallbackChain: { providers: string[]; model: string; variant?: string }[],
-  providerID: string,
+  currentModel: { providerID: string; modelID: string },
 ): string | undefined {
   for (const entry of fallbackChain) {
-    if (entry.providers.includes(providerID)) {
+    if (
+      entry.providers.includes(currentModel.providerID)
+      && entry.model === currentModel.modelID
+    ) {
+      return entry.variant
+    }
+  }
+
+  // Some providers expose identical model IDs (e.g. OpenAI models via different providers).
+  // If we didn't find an exact provider+model match, fall back to model-only matching.
+  for (const entry of fallbackChain) {
+    if (entry.model === currentModel.modelID) {
       return entry.variant
     }
   }

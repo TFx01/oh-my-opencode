@@ -21,8 +21,8 @@
  * Custom providers may use prefixes for routing (e.g., vertex_ai/, openai/).
  *
  * @example
- * extractModelPrefix("vertex_ai/claude-sonnet-4-5") // { prefix: "vertex_ai/", base: "claude-sonnet-4-5" }
- * extractModelPrefix("claude-sonnet-4-5") // { prefix: "", base: "claude-sonnet-4-5" }
+ * extractModelPrefix("vertex_ai/claude-sonnet-4-6") // { prefix: "vertex_ai/", base: "claude-sonnet-4-6" }
+ * extractModelPrefix("claude-sonnet-4-6") // { prefix: "", base: "claude-sonnet-4-6" }
  * extractModelPrefix("openai/gpt-5.2") // { prefix: "openai/", base: "gpt-5.2" }
  */
 function extractModelPrefix(modelID: string): { prefix: string; base: string } {
@@ -38,14 +38,14 @@ function extractModelPrefix(modelID: string): { prefix: string; base: string } {
 
 /**
  * Normalizes model IDs to use consistent hyphen formatting.
- * GitHub Copilot may use dots (claude-opus-4.5) but our maps use hyphens (claude-opus-4-5).
+ * GitHub Copilot may use dots (claude-opus-4.6) but our maps use hyphens (claude-opus-4-6).
  * This ensures lookups work regardless of format.
  *
  * @example
- * normalizeModelID("claude-opus-4.5") // "claude-opus-4-5"
+ * normalizeModelID("claude-opus-4.6") // "claude-opus-4-6"
  * normalizeModelID("gemini-3.5-pro") // "gemini-3-5-pro"
  * normalizeModelID("gpt-5.2") // "gpt-5-2"
- * normalizeModelID("vertex_ai/claude-opus-4.5") // "vertex_ai/claude-opus-4-5"
+ * normalizeModelID("vertex_ai/claude-opus-4.6") // "vertex_ai/claude-opus-4-6"
  */
 function normalizeModelID(modelID: string): string {
   // Replace dots with hyphens when followed by a digit
@@ -59,10 +59,10 @@ function normalizeModelID(modelID: string): string {
  * model provider (Anthropic, Google, OpenAI).
  *
  * @example
- * resolveProvider("github-copilot", "claude-opus-4-5") // "anthropic"
+ * resolveProvider("github-copilot", "claude-opus-4-6") // "anthropic"
  * resolveProvider("github-copilot", "gemini-3-pro") // "google"
  * resolveProvider("github-copilot", "gpt-5.2") // "openai"
- * resolveProvider("anthropic", "claude-opus-4-5") // "anthropic" (unchanged)
+ * resolveProvider("anthropic", "claude-opus-4-6") // "anthropic" (unchanged)
  */
 function resolveProvider(providerID: string, modelID: string): string {
   // GitHub Copilot is a proxy - infer actual provider from model name
@@ -87,8 +87,8 @@ function resolveProvider(providerID: string, modelID: string): string {
 // For OpenAI models, this signals that reasoning_effort should be set to "high"
 const HIGH_VARIANT_MAP: Record<string, string> = {
   // Claude
-  "claude-sonnet-4-5": "claude-sonnet-4-5-high",
-  "claude-opus-4-5": "claude-opus-4-5-high",
+  "claude-sonnet-4-6": "claude-sonnet-4-6-high",
+  "claude-opus-4-6": "claude-opus-4-6-high",
    // Gemini
    "gemini-3-pro": "gemini-3-pro-high",
    "gemini-3-pro-low": "gemini-3-pro-high",
@@ -109,12 +109,22 @@ const HIGH_VARIANT_MAP: Record<string, string> = {
   "gpt-5-2": "gpt-5-2-high",
   "gpt-5-2-chat-latest": "gpt-5-2-chat-latest-high",
   "gpt-5-2-pro": "gpt-5-2-pro-high",
+  // Antigravity (Google)
+  "antigravity-gemini-3-pro": "antigravity-gemini-3-pro-high",
+  "antigravity-gemini-3-flash": "antigravity-gemini-3-flash-high",
 }
 
 const ALREADY_HIGH: Set<string> = new Set(Object.values(HIGH_VARIANT_MAP))
 
 export const THINKING_CONFIGS = {
   anthropic: {
+    thinking: {
+      type: "enabled",
+      budgetTokens: 64000,
+    },
+    maxTokens: 128000,
+  },
+  "google-vertex-anthropic": {
     thinking: {
       type: "enabled",
       budgetTokens: 64000,
@@ -154,8 +164,7 @@ export const THINKING_CONFIGS = {
       "zai-coding-plan": {
         extra_body: {
           thinking: {
-            type: "enabled",
-            clear_thinking: false,
+            type: "disabled",
           },
         },
       },
@@ -165,6 +174,7 @@ export const THINKING_CONFIGS = {
 
 const THINKING_CAPABLE_MODELS = {
   anthropic: ["claude-sonnet-4", "claude-opus-4", "claude-3"],
+  "google-vertex-anthropic": ["claude-sonnet-4", "claude-opus-4", "claude-3"],
   "amazon-bedrock": ["claude", "anthropic"],
   google: ["gemini-2", "gemini-3"],
   "google-vertex": ["gemini-2", "gemini-3"],

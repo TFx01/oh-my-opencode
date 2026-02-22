@@ -1,155 +1,137 @@
-# PROJECT KNOWLEDGE BASE
+# oh-my-opencode — OpenCode Plugin
 
-**Generated:** 2026-01-26T14:50:00+09:00
-**Commit:** 9d66b807
-**Branch:** dev
-
----
-
-## **IMPORTANT: PULL REQUEST TARGET BRANCH**
-
-> **ALL PULL REQUESTS MUST TARGET THE `dev` BRANCH.**
->
-> **DO NOT CREATE PULL REQUESTS TARGETING `master` BRANCH.**
->
-> PRs to `master` will be automatically rejected by CI.
-
----
+**Generated:** 2026-02-21 | **Commit:** 86e3c7d1 | **Branch:** dev
 
 ## OVERVIEW
 
-OpenCode plugin: multi-model agent orchestration (Claude Opus 4.5, GPT-5.2, Gemini 3 Flash, Grok Code). 32 lifecycle hooks, 20+ tools (LSP, AST-Grep, delegation), 10 specialized agents, full Claude Code compatibility. "oh-my-zsh" for OpenCode.
+OpenCode plugin (npm: `oh-my-opencode`) that extends Claude Code (OpenCode fork) with multi-agent orchestration, 44 lifecycle hooks, 26 tools, skill/command/MCP systems, and Claude Code compatibility. 1208 TypeScript files, 143k LOC.
 
 ## STRUCTURE
 
 ```
 oh-my-opencode/
 ├── src/
-│   ├── agents/        # 10 AI agents - see src/agents/AGENTS.md
-│   ├── hooks/         # 32 lifecycle hooks - see src/hooks/AGENTS.md
-│   ├── tools/         # 20+ tools - see src/tools/AGENTS.md
-│   ├── features/      # Background agents, Claude Code compat - see src/features/AGENTS.md
-│   ├── shared/        # 55 cross-cutting utilities - see src/shared/AGENTS.md
-│   ├── cli/           # CLI installer, doctor - see src/cli/AGENTS.md
-│   ├── mcp/           # Built-in MCPs - see src/mcp/AGENTS.md
-│   ├── config/        # Zod schema, TypeScript types
-│   └── index.ts       # Main plugin entry (672 lines)
-├── script/            # build-schema.ts, build-binaries.ts
-├── packages/          # 7 platform-specific binaries
-└── dist/              # Build output (ESM + .d.ts)
+│   ├── index.ts              # Plugin entry: loadConfig → createManagers → createTools → createHooks → createPluginInterface
+│   ├── plugin-config.ts      # JSONC multi-level config: user → project → defaults (Zod v4)
+│   ├── agents/               # 11 agents (Sisyphus, Hephaestus, Oracle, Librarian, Explore, Atlas, Prometheus, Metis, Momus, Multimodal-Looker, Sisyphus-Junior)
+│   ├── hooks/                # 44 hooks across 39 directories + 6 standalone files
+│   ├── tools/                # 26 tools across 15 directories
+│   ├── features/             # 19 feature modules (background-agent, skill-loader, tmux, MCP-OAuth, etc.)
+│   ├── shared/               # 100+ utility files in 13 categories
+│   ├── config/               # Zod v4 schema system (22+ files)
+│   ├── cli/                  # CLI: install, run, doctor, mcp-oauth (Commander.js)
+│   ├── mcp/                  # 3 built-in remote MCPs (websearch, context7, grep_app)
+│   ├── plugin/               # 8 OpenCode hook handlers + 44 hook composition
+│   └── plugin-handlers/      # 6-phase config loading pipeline
+├── packages/                 # Monorepo: comment-checker, opencode-sdk, 10 platform binaries
+└── local-ignore/             # Dev-only test fixtures
 ```
+
+## INITIALIZATION FLOW
+
+```
+OhMyOpenCodePlugin(ctx)
+  ├─→ loadPluginConfig()         # JSONC parse → project/user merge → Zod validate → migrate
+  ├─→ createManagers()           # TmuxSessionManager, BackgroundManager, SkillMcpManager, ConfigHandler
+  ├─→ createTools()              # SkillContext + AvailableCategories + ToolRegistry (26 tools)
+  ├─→ createHooks()              # 3-tier: Core(35) + Continuation(7) + Skill(2) = 44 hooks
+  └─→ createPluginInterface()    # 8 OpenCode hook handlers → PluginInterface
+```
+
+## 8 OPENCODE HOOK HANDLERS
+
+| Handler | Purpose |
+|---------|---------|
+| `config` | 6-phase: provider → plugin-components → agents → tools → MCPs → commands |
+| `tool` | 26 registered tools |
+| `chat.message` | First-message variant, session setup, keyword detection |
+| `chat.params` | Anthropic effort level adjustment |
+| `event` | Session lifecycle (created, deleted, idle, error) |
+| `tool.execute.before` | Pre-tool hooks (file guard, label truncator, rules injector) |
+| `tool.execute.after` | Post-tool hooks (output truncation, metadata store) |
+| `experimental.chat.messages.transform` | Context injection, thinking block validation |
 
 ## WHERE TO LOOK
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Add agent | `src/agents/` | Create .ts with factory, add to `agentSources` |
-| Add hook | `src/hooks/` | Create dir with `createXXXHook()`, register in index.ts |
-| Add tool | `src/tools/` | Dir with index/types/constants/tools.ts |
-| Add MCP | `src/mcp/` | Create config, add to index.ts |
-| Add skill | `src/features/builtin-skills/` | Create dir with SKILL.md |
-| Add command | `src/features/builtin-commands/` | Add template + register in commands.ts |
-| Config schema | `src/config/schema.ts` | Zod schema, run `bun run build:schema` |
-| Background agents | `src/features/background-agent/` | manager.ts (1377 lines) |
-| Orchestrator | `src/hooks/atlas/` | Main orchestration hook (752 lines) |
+| Add new agent | `src/agents/` + `src/agents/builtin-agents/` | Follow createXXXAgent factory pattern |
+| Add new hook | `src/hooks/{name}/` + register in `src/plugin/hooks/create-*-hooks.ts` | Match event type to tier |
+| Add new tool | `src/tools/{name}/` + register in `src/plugin/tool-registry.ts` | Follow createXXXTool factory |
+| Add new feature module | `src/features/{name}/` | Standalone module, wire in plugin/ |
+| Add new MCP | `src/mcp/` + register in `createBuiltinMcps()` | Remote HTTP only |
+| Add new skill | `src/features/builtin-skills/skills/` | Implement BuiltinSkill interface |
+| Add new command | `src/features/builtin-commands/` | Template in templates/ |
+| Add new CLI command | `src/cli/cli-program.ts` | Commander.js subcommand |
+| Add new doctor check | `src/cli/doctor/checks/` | Register in checks/index.ts |
+| Modify config schema | `src/config/schema/` + update root schema | Zod v4, add to OhMyOpenCodeConfigSchema |
+| Add new category | `src/tools/delegate-task/constants.ts` | DEFAULT_CATEGORIES + CATEGORY_MODEL_REQUIREMENTS |
 
-## TDD (Test-Driven Development)
+## MULTI-LEVEL CONFIG
 
-**MANDATORY.** RED-GREEN-REFACTOR:
-1. **RED**: Write test → `bun test` → FAIL
-2. **GREEN**: Implement minimum → PASS
-3. **REFACTOR**: Clean up → stay GREEN
+```
+Project (.opencode/oh-my-opencode.jsonc)  →  User (~/.config/opencode/oh-my-opencode.jsonc)  →  Defaults
+```
 
-**Rules:**
-- NEVER write implementation before test
-- NEVER delete failing tests - fix the code
-- Test file: `*.test.ts` alongside source (100 test files)
-- BDD comments: `//#given`, `//#when`, `//#then`
+Fields: agents (14 overridable, 21 fields each), categories (8 built-in + custom), disabled_* arrays (agents, hooks, mcps, skills, commands, tools), 19 feature-specific configs.
+
+## THREE-TIER MCP SYSTEM
+
+| Tier | Source | Mechanism |
+|------|--------|-----------|
+| Built-in | `src/mcp/` | 3 remote HTTP: websearch (Exa/Tavily), context7, grep_app |
+| Claude Code | `.mcp.json` | `${VAR}` env expansion via claude-code-mcp-loader |
+| Skill-embedded | SKILL.md YAML | Managed by SkillMcpManager (stdio + HTTP) |
 
 ## CONVENTIONS
 
-- **Package manager**: Bun only (`bun run`, `bun build`, `bunx`)
-- **Types**: bun-types (NEVER @types/node)
-- **Build**: `bun build` (ESM) + `tsc --emitDeclarationOnly`
-- **Exports**: Barrel pattern via index.ts
-- **Naming**: kebab-case dirs, `createXXXHook`/`createXXXTool` factories
-- **Testing**: BDD comments, 100 test files
-- **Temperature**: 0.1 for code agents, max 0.3
+- **Test pattern**: Bun test (`bun:test`), co-located `*.test.ts`, given/when/then style (nested describe with `#given`/`#when`/`#then` prefixes)
+- **Factory pattern**: `createXXX()` for all tools, hooks, agents
+- **Hook tiers**: Session (22) → Tool-Guard (10) → Transform (4) → Continuation (7) → Skill (2)
+- **Agent modes**: `primary` (respects UI model) vs `subagent` (own fallback chain) vs `all`
+- **Model resolution**: 3-step: override → category-default → provider-fallback → system-default
+- **Config format**: JSONC with comments, Zod v4 validation, snake_case keys
+- **File naming**: kebab-case for all files/directories
+- **Module structure**: index.ts barrel exports, no catch-all files (utils.ts, helpers.ts banned), 200 LOC soft limit
+- **Imports**: relative within module, barrel imports across modules (`import { log } from "./shared"`)
 
 ## ANTI-PATTERNS
 
-| Category | Forbidden |
-|----------|-----------|
-| Package Manager | npm, yarn - Bun exclusively |
-| Types | @types/node - use bun-types |
-| File Ops | mkdir/touch/rm/cp/mv in code - use bash tool |
-| Publishing | Direct `bun publish` - GitHub Actions only |
-| Versioning | Local version bump - CI manages |
-| Type Safety | `as any`, `@ts-ignore`, `@ts-expect-error` |
-| Error Handling | Empty catch blocks |
-| Testing | Deleting failing tests |
-| Agent Calls | Sequential - use `delegate_task` parallel |
-| Hook Logic | Heavy PreToolUse - slows every call |
-| Commits | Giant (3+ files), separate test from impl |
-| Temperature | >0.3 for code agents |
-| Trust | Agent self-reports - ALWAYS verify |
-
-## AGENT MODELS
-
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| Sisyphus | anthropic/claude-opus-4-5 | Primary orchestrator (fallback: kimi-k2.5 → glm-4.7 → gpt-5.2-codex → gemini-3-pro) |
-| Atlas | anthropic/claude-sonnet-4-5 | Master orchestrator (fallback: kimi-k2.5 → gpt-5.2) |
-| oracle | openai/gpt-5.2 | Consultation, debugging |
-| librarian | zai-coding-plan/glm-4.7 | Docs, GitHub search (fallback: glm-4.7-free) |
-| explore | anthropic/claude-haiku-4-5 | Fast codebase grep (fallback: gpt-5-mini → gpt-5-nano) |
-| multimodal-looker | google/gemini-3-flash | PDF/image analysis |
-| Prometheus | anthropic/claude-opus-4-5 | Strategic planning (fallback: kimi-k2.5 → gpt-5.2) |
+- Never use `as any`, `@ts-ignore`, `@ts-expect-error`
+- Never suppress lint/type errors
+- Never add emojis to code/comments unless user explicitly asks
+- Never commit unless explicitly requested
+- Test: given/when/then — never use Arrange-Act-Assert comments
+- Comments: avoid AI-generated comment patterns (enforced by comment-checker hook)
+- Never create catch-all files (`utils.ts`, `helpers.ts`, `service.ts`)
+- Empty catch blocks `catch(e) {}` — always handle errors
 
 ## COMMANDS
 
 ```bash
-bun run typecheck      # Type check
-bun run build          # ESM + declarations + schema
-bun run rebuild        # Clean + Build
-bun test               # 100 test files
+bun test                    # Bun test suite
+bun run build              # Build plugin (ESM + declarations + schema)
+bun run typecheck           # tsc --noEmit
+bunx oh-my-opencode install # Interactive setup
+bunx oh-my-opencode doctor  # Health diagnostics
+bunx oh-my-opencode run     # Non-interactive session
 ```
 
-## DEPLOYMENT
+## CI/CD
 
-**GitHub Actions workflow_dispatch ONLY**
-1. Commit & push changes
-2. Trigger: `gh workflow run publish -f bump=patch`
-3. Never `bun publish` directly, never bump version locally
-
-## COMPLEXITY HOTSPOTS
-
-| File | Lines | Description |
-|------|-------|-------------|
-| `src/features/builtin-skills/skills.ts` | 1729 | Skill definitions |
-| `src/features/background-agent/manager.ts` | 1377 | Task lifecycle, concurrency |
-| `src/agents/prometheus-prompt.ts` | 1196 | Planning agent |
-| `src/tools/delegate-task/tools.ts` | 1070 | Category-based delegation |
-| `src/hooks/atlas/index.ts` | 752 | Orchestrator hook |
-| `src/cli/config-manager.ts` | 664 | JSONC config parsing |
-| `src/index.ts` | 672 | Main plugin entry |
-| `src/features/builtin-commands/templates/refactor.ts` | 619 | Refactor command template |
-
-## MCP ARCHITECTURE
-
-Three-tier system:
-1. **Built-in**: websearch (Exa), context7 (docs), grep_app (GitHub)
-2. **Claude Code compat**: .mcp.json with `${VAR}` expansion
-3. **Skill-embedded**: YAML frontmatter in skills
-
-## CONFIG SYSTEM
-
-- **Zod validation**: `src/config/schema.ts`
-- **JSONC support**: Comments, trailing commas
-- **Multi-level**: Project (`.opencode/`) → User (`~/.config/opencode/`)
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| ci.yml | push/PR | Tests (split: mock-heavy isolated + batch), typecheck, build, schema auto-commit |
+| publish.yml | manual | Version bump, npm publish, platform binaries, GitHub release, merge to master |
+| publish-platform.yml | called | 11 platform binaries via bun compile (darwin/linux/windows) |
+| sisyphus-agent.yml | @mention | AI agent handles issues/PRs |
 
 ## NOTES
 
-- **OpenCode**: Requires >= 1.0.150
-- **Flaky tests**: ralph-loop (CI timeout), session-state (parallel pollution)
-- **Trusted deps**: @ast-grep/cli, @ast-grep/napi, @code-yeongyu/comment-checker
+- Logger writes to `/tmp/oh-my-opencode.log` — check there for debugging
+- Background tasks: 5 concurrent per model/provider (configurable)
+- Plugin load timeout: 10s for Claude Code plugins
+- Model fallback priority: Claude > OpenAI > Gemini > Copilot > OpenCode Zen > Z.ai > Kimi
+- Config migration runs automatically on legacy keys (agent names, hook names, model versions)
+- Build: bun build (ESM) + tsc --emitDeclarationOnly, externals: @ast-grep/napi
+- Test setup: `test-setup.ts` preloaded via bunfig.toml, mock-heavy tests run in isolation in CI
